@@ -1,13 +1,43 @@
+import logging
 from datetime import datetime
 from pathlib import Path
+from typing import ClassVar, Self
 
 from pydantic import BaseModel, SecretStr
 
-_SETTINGS_PATH = Path("/app/data/settings.json")
-_USERS_PATH = Path("/app/data/users.json")
+logger = logging.getLogger(__name__)
+
+_CONFIGS_PATH = Path("./configs/")  # /app/configs in docker
 
 
-class Settings(BaseModel):
+class ConfigBase(BaseModel):
+    path: ClassVar[Path]
+
+    @classmethod
+    def load(cls, generate_default: bool = False) -> Self:
+        if cls.path.exists():
+            with cls.path.open("r") as f:
+                data = f.read()
+
+            return cls.model_validate_json(data)
+
+        if not generate_default:
+            raise FileNotFoundError(f"Config file not found at {cls.path=}.")
+
+        logger.warning(f"Config file not found at {cls.path=}. Generate default config.")
+        configs = cls()
+        configs.save()
+        return configs
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("w") as f:
+            f.write(self.model_dump_json(indent=4))
+
+
+class Settings(ConfigBase):
+    path: ClassVar[Path] = _CONFIGS_PATH / "settings.json"
+
     immich_url: str = "http://localhost:2283"
     immich_timeout_seconds: int = 30
     syncthing_url: str = "http://localhost:8384"
@@ -19,16 +49,6 @@ class Settings(BaseModel):
     cron_schedule: str = "0 0 * * *"  # Default: every day at midnight
     min_sleep_seconds: int = 60
 
-    @classmethod
-    def load(cls, path: Path = _SETTINGS_PATH) -> "Settings":
-        if not path.exists():
-            raise FileNotFoundError(f"Settings file not found at {path=}")
-
-        with path.open("r") as f:
-            data = f.read()
-
-        return cls.model_validate_json(data)
-
 
 class User(BaseModel):
     username: str
@@ -37,22 +57,10 @@ class User(BaseModel):
     last_asset_id: int = 0
 
 
-class UserSync(BaseModel):
+class UserSync(ConfigBase):
+    path: ClassVar[Path] = _CONFIGS_PATH / "users.json"
+
     users: list[User] = []
-
-    @classmethod
-    def load(cls, path: Path = _USERS_PATH) -> "UserSync":
-        if not path.exists():
-            raise FileNotFoundError(f"Users settings file not found at {path=}")
-
-        with path.open("r") as f:
-            data = f.read()
-
-        return cls.model_validate_json(data)
-
-    def save(self, path: Path = _USERS_PATH) -> None:
-        with path.open("w") as f:
-            f.write(self.model_dump_json(indent=4))
 
 
 class ImmichAsset(BaseModel):

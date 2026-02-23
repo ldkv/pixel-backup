@@ -1,27 +1,33 @@
 services:
-  immich-backup:
+  immich-pixel-backup:
     build: .
-    user: "1000:1000"
-    container_name: immich-backup
-    volumes:
-      - /mnt/media:/mnt/media
-      - ./data/app_configs:/app/data
-    environment:
-      - TZ=Europe/Paris
-      - PUID=1000
-      - PGID=1000
-      - SYNCTHING_URL=http://syncthing:8384
+    container_name: immich_pixel_backup
     restart: unless-stopped
+    volumes:
+      - /immich:/immich # Must be parent of syncthing volume
+      - ./configs:/app/configs
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - IMMICH_URL=http://immich:2283
+      - SYNCTHING_URL=http://syncthing:8384
+      - SYNC_DIR=/immich/syncthing
+      - UPPER_LIMIT_GB=20
+      - LOWER_LIMIT_GB=5
+      - CRON_SCHEDULE=0 */6 * * *
+      - MIN_SLEEP_SECONDS=60
 
   syncthing:
-    image: syncthing/syncthing:2.0.14
-    container_name: immich-syncthing
-    environment:
-      - PUID=1000
-      - PGID=1000
+    image: syncthing/syncthing:latest
+    container_name: immich_syncthing
+    restart: unless-stopped
     volumes:
-      - /mnt/media:/mnt/media # Must match logic container path
-      - ./data/syncthing_configs:/var/lib/syncthing
+      - /immich/syncthing:/immich/syncthing # Must match logic container path
+      - syncthing_config:/config
+      - /etc/localtime:/etc/localtime:ro
     ports:
       - "8384:8384" # GUI
-    restart: unless-stopped
+      - "22000:22000/tcp" # Syncthing Sync Protocol (TCP)
+      - "22000:22000/udp" # Syncthing Sync Protocol (UDP)
+
+volumes:
+  syncthing_config:

@@ -31,7 +31,10 @@ def trigger_syncthing_scan(configs: Settings) -> None:
 
 
 def fetch_immich_assets(
-    immich_url: str, immich_api_key: str, created_after: datetime, timeout: int
+    immich_url: str,
+    immich_api_key: str,
+    created_after: datetime,
+    timeout: int,
 ) -> list[ImmichAsset]:
     try:
         resp = requests.post(
@@ -55,8 +58,7 @@ def run_sync_logic(configs: Settings) -> None:
         return
 
     remaining_bytes = (configs.upper_limit_gb - current_gb) * GIGABYTE
-    should_trigger_scan = False
-    users = UserSync.load()
+    users = UserSync.load(generate_default=False)
     for index, user in enumerate(users.users):
         user_quota_bytes = remaining_bytes / (len(users.users) - index)
         added_bytes = sync_per_user(configs, user, user_quota_bytes)
@@ -66,11 +68,6 @@ def run_sync_logic(configs: Settings) -> None:
 
         remaining_bytes -= added_bytes
         users.save()
-        if added_bytes > 0:
-            should_trigger_scan = True
-
-    if should_trigger_scan:
-        trigger_syncthing_scan(configs)
 
 
 def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> int:

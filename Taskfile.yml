@@ -70,3 +70,12 @@ tasks:
   check-all:
     desc: Run all checks and tests
     deps: [dependencies-check, code-quality, test]
+
+  down:
+    desc: Stop the application with docker compose
+    cmd: docker compose down
+
+  up:
+    desc: Start the application with docker compose
+    deps: [down]
+    cmd: docker compose up -d --build

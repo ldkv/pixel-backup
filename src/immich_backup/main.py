@@ -1,7 +1,11 @@
 import logging
 import time
+from datetime import datetime
 
-from immich_backup.syncthing import setup_syncthing
+from croniter import croniter
+
+from immich_backup.schemas import Settings
+from immich_backup.sync_script import run_sync_logic
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +20,13 @@ def configure_logging():
 
 def main() -> None:
     configure_logging()
-    setup_syncthing()
     while True:
-        # Temporary
-        time.sleep(6)
-        continue
+        configs = Settings.load(generate_default=True)
+        now = datetime.now()
+        sleep_secs = croniter(configs.cron_schedule, now).get_next(float) - now.timestamp()
+        sleep_secs = 1
+        time.sleep(max(configs.min_sleep_seconds, sleep_secs))
+        run_sync_logic(configs)
 
 
 if __name__ == "__main__":
