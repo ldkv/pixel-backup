@@ -1,0 +1,72 @@
+version: "3"
+
+tasks:
+  default: task help
+
+  help:
+    desc: show help message
+    cmd: task --list-all
+
+  install-uv:
+    desc: Install uv if not found
+    status:
+      - uv -V
+    cmds:
+      - echo "uv not found, installing..."
+      - curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  tree:
+    desc: Show the project dependency tree with outdated packages and sizes
+    dir: "{{.USER_WORKING_DIR}}"
+    cmds:
+      - uv tree --outdated --show-sizes
+
+  dev-install:
+    desc: Install all dependencies including dev, extras
+    dir: "{{.USER_WORKING_DIR}}"
+    deps: [install-uv]
+    cmds:
+      - uv venv --clear
+      - uv sync
+
+  dependencies-check:
+    desc: Check the dependencies are up to date
+    cmds:
+      - uv lock --check
+
+  format-check:
+    desc: Verify code formatting
+    cmds:
+      - uv run ruff format --check .
+
+  format:
+    desc: Format code
+    cmds:
+      - uv run ruff format .
+
+  lint-check:
+    desc: Verify code linting
+    cmds:
+      - uv run ruff check .
+
+  lint-fix:
+    desc: Apply linting fixes to codebase - use with caution
+    cmds:
+      - uv run ruff check --fix .
+
+  type-check:
+    desc: Run the type checker
+    cmd: uv run ty check
+
+  code-quality:
+    desc: Run the linters and static type checker
+    deps: [format-check, lint-check, type-check]
+
+  test:
+    desc: Run the tests in local environment
+    cmds:
+      - uv run pytest .
+
+  check-all:
+    desc: Run all checks and tests
+    deps: [dependencies-check, code-quality, test]

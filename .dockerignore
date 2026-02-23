@@ -19,5 +19,9 @@ ENV/
 # IDEs and editors
 .vscode/
 
-# Personal files
+# Dockerignore
+tests/
+config/
 data/
+LICENSE
+Taskfile.yml

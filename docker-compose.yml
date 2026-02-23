@@ -1,0 +1,27 @@
+services:
+  immich-backup:
+    build: .
+    user: "1000:1000"
+    container_name: immich-backup
+    volumes:
+      - /mnt/media:/mnt/media
+      - ./data/app_configs:/app/data
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1000
+      - PGID=1000
+      - SYNCTHING_URL=http://syncthing:8384
+    restart: unless-stopped
+
+  syncthing:
+    image: syncthing/syncthing:2.0.14
+    container_name: immich-syncthing
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /mnt/media:/mnt/media # Must match logic container path
+      - ./data/syncthing_configs:/var/lib/syncthing
+    ports:
+      - "8384:8384" # GUI
+    restart: unless-stopped
