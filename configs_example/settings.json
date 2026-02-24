@@ -1,0 +1,9 @@
+{
+    "immich_library_dir": "/immich/docker_data/library",
+    "syncthing_dir": "/immich/syncthing",
+    "upper_limit_gb": 20.0,
+    "lower_limit_gb": 5.0,
+    "cron_schedule": "0 0 * * *",
+    "timezone": "UTC",
+    "min_sleep_seconds": 60
+}

@@ -20,4 +20,4 @@ ENV/
 .vscode/
 
 # Personal files
-data/
+configs/
