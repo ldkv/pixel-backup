@@ -24,7 +24,7 @@ def fetch_local_assets(
 ) -> list[tuple[Path, int, float]]:
     user_path = immich_library_dir / owner
     if not user_path.is_dir():
-        logger.warning(f"{user_path=} does not exist or is not a directory.")
+        logger.error(f"{user_path=} does not exist or is not a directory.")
         return []
 
     found_assets = []
