@@ -24,7 +24,6 @@ def main() -> None:
         configs = Settings.load(generate_default=True)
         now = datetime.now()
         sleep_secs = croniter(configs.cron_schedule, now).get_next(float) - now.timestamp()
-        sleep_secs = 1
         time.sleep(max(configs.min_sleep_seconds, sleep_secs))
         run_sync_logic(configs)
 

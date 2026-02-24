@@ -1,12 +1,8 @@
 {
-    "immich_url": "http://localhost:2283",
-    "immich_timeout_seconds": 30,
-    "syncthing_url": "http://localhost:8384",
-    "syncthing_key": "",
-    "syncthing_folder_id": "",
-    "sync_dir": "/immich/syncthing/",
+    "immich_library_dir": "/immich/",
+    "syncthing_dir": "/home/ldkv/dev/immich-backup/syncthing",
     "upper_limit_gb": 20.0,
     "lower_limit_gb": 5.0,
     "cron_schedule": "0 0 * * *",
-    "min_sleep_seconds": 1
+    "min_sleep_seconds": 60
 }

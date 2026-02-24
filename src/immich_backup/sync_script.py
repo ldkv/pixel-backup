@@ -1,15 +1,16 @@
 import logging
 import os
-from datetime import datetime
 from pathlib import Path
 
 import requests
 
-from immich_backup.schemas import ImmichAsset, Settings, User, UserSync
+from immich_backup.local_disk import fetch_local_assets
+from immich_backup.schemas import Settings, User, UserSync
 
 logger = logging.getLogger(__name__)
 
 GIGABYTE = 1024**3
+AVERAGE_ASSET_BYTES = 500 * 1024  # 500KB
 
 
 def get_folder_size_gb(path: Path) -> float:
@@ -30,29 +31,8 @@ def trigger_syncthing_scan(configs: Settings) -> None:
         logger.warning(f"Scan trigger failed: {e}")
 
 
-def fetch_immich_assets(
-    immich_url: str,
-    immich_api_key: str,
-    created_after: datetime,
-    timeout: int,
-) -> list[ImmichAsset]:
-    try:
-        resp = requests.post(
-            f"{immich_url}/search/metadata",
-            headers={"x-api-key": immich_api_key},
-            json={"createdAfter": created_after.isoformat()},
-            timeout=timeout,
-        )
-        resp.raise_for_status()
-        assets_data = resp.json().get("assets", {}).get("items", [])
-        return sorted([ImmichAsset(**asset) for asset in assets_data], key=lambda x: x.id)
-    except Exception as e:
-        logger.error(f"Failed to fetch assets: {e}")
-        return []
-
-
 def run_sync_logic(configs: Settings) -> None:
-    current_gb = get_folder_size_gb(configs.sync_dir)
+    current_gb = get_folder_size_gb(configs.syncthing_dir)
     if current_gb >= configs.lower_limit_gb:
         logger.info(f"Throttled: {current_gb:.2f}GB. Waiting for space.")
         return
@@ -60,10 +40,14 @@ def run_sync_logic(configs: Settings) -> None:
     remaining_bytes = (configs.upper_limit_gb - current_gb) * GIGABYTE
     users = UserSync.load(generate_default=False)
     for index, user in enumerate(users.users):
+        if remaining_bytes <= 0:
+            logger.info(f"Reached upper limit. Stopping sync for {user=}.")
+            continue
+
         user_quota_bytes = remaining_bytes / (len(users.users) - index)
         added_bytes = sync_per_user(configs, user, user_quota_bytes)
         if not added_bytes:
-            logger.info(f"No more assets to sync for user {user.username}.")
+            logger.info(f"No new assets for user {user.username}.")
             continue
 
         remaining_bytes -= added_bytes
@@ -71,34 +55,21 @@ def run_sync_logic(configs: Settings) -> None:
 
 
 def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> int:
-    assets = fetch_immich_assets(
-        configs.immich_url,
-        user.immich_api_key,
-        user.asset_created_after,
-        configs.immich_timeout_seconds,
-    )
-    if not assets:
-        logger.info(f"No new assets for user {user.username}.")
-        return 0
-
+    assets = fetch_local_assets(configs.immich_library_dir, user.username, user.asset_created_after)
     added_bytes = 0
-    for asset in assets:
-        if asset.id <= user.last_asset_id:
-            continue
-
-        src = Path(asset.originalPath)
-        dest = Path(configs.sync_dir) / src.name
+    for asset_path, asset_size, asset_created_at in sorted(assets, key=lambda a: a[2]):
+        asset_relative_path = asset_path.relative_to(configs.immich_library_dir)
+        dest = Path(configs.syncthing_dir) / asset_relative_path
         if dest.exists():
-            logger.warning(f"Destination {dest} already exists. Skipping {src}.")
+            logger.warning(f"Destination {dest} already exists. Skipping {asset_path}.")
             continue
 
-        if src.exists() and src.stat().st_dev == configs.sync_dir.stat().st_dev:
-            os.link(src, dest)
-            added_bytes += src.stat().st_size
-            if added_bytes >= user_quota_bytes:
-                break
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        os.link(asset_path, dest)
+        added_bytes += asset_size
+        if added_bytes >= user_quota_bytes:
+            user.asset_created_after = asset_created_at
+            break
 
-    user.last_asset_id = assets[-1].id
     logger.info(f"Added {added_bytes / GIGABYTE:.2f}GB of videos for user {user.username}.")
-
     return added_bytes

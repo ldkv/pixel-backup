@@ -1,9 +1,9 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar, Self
 
-from pydantic import BaseModel, SecretStr
+from pydantic import AwareDatetime, BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +38,8 @@ class ConfigBase(BaseModel):
 class Settings(ConfigBase):
     path: ClassVar[Path] = _CONFIGS_PATH / "settings.json"
 
-    immich_url: str = "http://localhost:2283"
-    immich_timeout_seconds: int = 30
-    syncthing_url: str = "http://localhost:8384"
-    syncthing_key: SecretStr = SecretStr("")
-    syncthing_folder_id: str = ""
-    sync_dir: Path = Path("/sync")
+    immich_library_dir: Path = Path("/immich/docker_data/library")
+    syncthing_dir: Path = Path("/immich/syncthing")
     upper_limit_gb: float = 20.0
     lower_limit_gb: float = 5.0
     cron_schedule: str = "0 0 * * *"  # Default: every day at midnight
@@ -52,9 +48,7 @@ class Settings(ConfigBase):
 
 class User(BaseModel):
     username: str
-    immich_api_key: str
-    asset_created_after: datetime = datetime(1970, 1, 1)
-    last_asset_id: int = 0
+    asset_created_after: AwareDatetime = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class UserSync(ConfigBase):
@@ -64,5 +58,6 @@ class UserSync(ConfigBase):
 
 
 class ImmichAsset(BaseModel):
-    id: int
+    id: str
+    size: int
     originalPath: str

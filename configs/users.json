@@ -2,15 +2,7 @@
     "users": [
         {
             "username": "user1",
-            "immich_api_key": "your_api_key_here",
-            "last_processed_id": 0,
-            "created_after": "2024-01-01T00:00:00"
-        },
-        {
-            "username": "user2",
-            "immich_api_key": "your_api_key_here",
-            "last_processed_id": 0,
-            "created_after": "2024-01-01T00:00:00"
+            "asset_created_after": "2000-01-01T00:00:00Z"
         }
     ]
 }
