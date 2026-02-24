@@ -79,3 +79,4 @@ def test_user_defaults():
     user = User(username="defaultuser")
     assert user.username == "defaultuser"
     assert user.asset_created_after == datetime(1970, 1, 1, tzinfo=UTC)
+    assert user.last_timestamp_ns == 0

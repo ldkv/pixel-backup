@@ -3,8 +3,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from immich_backup.schemas import Settings, User, UserConfig
 from immich_backup.sync import sync_all_users, sync_per_user
 from immich_backup.utils import GIGABYTE
@@ -51,7 +49,7 @@ class TestSyncPerUser:
         added_bytes, last_created_at = sync_per_user(configs, user, user_quota_bytes)
 
         assert added_bytes == 0
-        assert last_created_at == user.asset_created_after.timestamp()
+        assert last_created_at == user.asset_created_after.timestamp() * 1_000_000_000
 
     def test_sync_skips_existing_destinations(self, tmp_path: Path):
         immich_lib = tmp_path / "immich_library"
@@ -77,7 +75,6 @@ class TestSyncPerUser:
 
         # No bytes should be added since file was skipped
         assert added_bytes == 0
-        # Destination should still have original content
         assert dest_file.read_text() == "existing content"
 
     def test_sync_respects_quota(self, tmp_path: Path):
@@ -107,7 +104,7 @@ class TestSyncPerUser:
         assert added_bytes == 2000
         synced_files = [f.name for f in (syncthing_dir / "testuser").glob("*.jpg")]
         assert synced_files == ["photo2.jpg", "photo3.jpg"]
-        assert last_created_at == pytest.approx(datetime(2020, 1, 3).timestamp(), abs=1)
+        assert last_created_at == datetime(2020, 1, 3).timestamp() * 1_000_000_000
 
     def test_sync_creates_nested_directories(self, tmp_path: Path):
         immich_lib = tmp_path / "immich_library"

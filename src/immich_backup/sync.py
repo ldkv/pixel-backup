@@ -1,6 +1,5 @@
 import logging
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 
 from immich_backup.local_disk import fetch_local_assets
@@ -24,35 +23,35 @@ def sync_all_users(configs: Settings) -> None:
             continue
 
         user_quota_bytes = remaining_bytes / (len(users.users) - index)
-        added_bytes, last_asset_created_at = sync_per_user(configs, user, user_quota_bytes)
+        added_bytes, last_timestamp_ns = sync_per_user(configs, user, user_quota_bytes)
         if not added_bytes:
             logger.info(f"No new assets for user {user.username}.")
             continue
 
         logger.info(f"Added {added_bytes / GIGABYTE:.2f}GB of videos for user {user.username}.")
         remaining_bytes -= added_bytes
-        user.asset_created_after = datetime.fromtimestamp(last_asset_created_at, tz=UTC)
+        user.update_timestamp(last_timestamp_ns)
         users.save()
 
 
-def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> tuple[int, float]:
-    last_asset_created_at = user.asset_created_after.timestamp()
-    assets = fetch_local_assets(configs.immich_library_dir, user.username, last_asset_created_at)
+def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> tuple[int, int]:
+    last_timestamp_ns = user.last_timestamp_ns
+    assets = fetch_local_assets(configs.immich_library_dir, user.username, last_timestamp_ns)
     if not assets:
-        return 0, last_asset_created_at
+        return 0, last_timestamp_ns
 
     added_bytes = 0
-    for asset_path, asset_size, asset_created_at in sorted(assets, key=lambda a: a[2]):
+    for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
         dest = Path(configs.syncthing_dir) / asset_path.relative_to(configs.immich_library_dir)
         if dest.exists():
             logger.warning(f"Skipping {asset_path=}. Destination already exists: {dest}")
             continue
 
-        last_asset_created_at = asset_created_at
+        last_timestamp_ns = asset_created_at_ns
         dest.parent.mkdir(parents=True, exist_ok=True)
         os.link(asset_path, dest)
         added_bytes += asset_size
         if added_bytes >= user_quota_bytes:
             break
 
-    return added_bytes, last_asset_created_at
+    return added_bytes, last_timestamp_ns

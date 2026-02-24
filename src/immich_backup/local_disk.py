@@ -17,11 +17,7 @@ IGNORED_EXTENSIONS = {
 }
 
 
-def fetch_local_assets(
-    immich_library_dir: Path,
-    owner: str,
-    created_after_timestamp: float,
-) -> list[tuple[Path, int, float]]:
+def fetch_local_assets(immich_library_dir: Path, owner: str, last_timestamp_ns: int) -> list[tuple[Path, int, int]]:
     user_path = immich_library_dir / owner
     if not user_path.is_dir():
         logger.error(f"{user_path=} does not exist or is not a directory.")
@@ -29,8 +25,8 @@ def fetch_local_assets(
 
     found_assets = []
     for file in user_path.rglob("*"):
-        if is_media_file(file) and (created_at := file.stat().st_mtime) >= created_after_timestamp:
-            found_assets.append((file, file.stat().st_size, created_at))
+        if is_media_file(file) and (created_at_ns := file.stat().st_mtime_ns) >= last_timestamp_ns:
+            found_assets.append((file, file.stat().st_size, created_at_ns))
 
     return found_assets
 

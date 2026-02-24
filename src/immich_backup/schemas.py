@@ -60,6 +60,7 @@ class Settings(ConfigBase):
 class User(BaseModel):
     username: str
     asset_created_after: datetime = datetime(1970, 1, 1, tzinfo=UTC)
+    last_timestamp_ns: int = 0
 
     @field_validator("asset_created_after", mode="after")
     def ensure_utc(cls, dt: datetime) -> datetime:
@@ -68,6 +69,13 @@ class User(BaseModel):
             return dt.replace(tzinfo=UTC)
 
         return dt.astimezone(UTC)
+
+    def model_post_init(self, _):
+        self.last_timestamp_ns = self.last_timestamp_ns or int(self.asset_created_after.timestamp() * 1_000_000_000)
+
+    def update_timestamp(self, new_timestamp_ns: int) -> None:
+        self.last_timestamp_ns = new_timestamp_ns
+        self.asset_created_after = datetime.fromtimestamp(new_timestamp_ns / 1_000_000_000, tz=UTC)
 
 
 class UserConfig(ConfigBase):

@@ -72,7 +72,7 @@ class TestFetchLocalAssets:
         file2.touch()
 
         # Fetch all assets (created_after = 0)
-        assets = fetch_local_assets(immich_library, "testuser", 0.0)
+        assets = fetch_local_assets(immich_library, "testuser", 0)
 
         assert len(assets) == 2
         assert all(isinstance(asset, tuple) and len(asset) == 3 for asset in assets)
@@ -98,7 +98,7 @@ class TestFetchLocalAssets:
         new_file.touch()  # Current time
 
         # Fetch only recent assets
-        cutoff_time = time.time() - 5000
+        cutoff_time = int((time.time() - 5000) * 1_000_000_000)  # Convert to nanoseconds
         assets = fetch_local_assets(immich_library, "testuser", cutoff_time)
 
         # Should only get the new file
@@ -109,7 +109,7 @@ class TestFetchLocalAssets:
         immich_library = tmp_path / "library"
         immich_library.mkdir()
 
-        assets = fetch_local_assets(immich_library, "nonexistent_user", 0.0)
+        assets = fetch_local_assets(immich_library, "nonexistent_user", 0)
         assert assets == []
 
     def test_user_path_is_file_not_directory(self, tmp_path: Path):
@@ -120,7 +120,7 @@ class TestFetchLocalAssets:
         user_file = immich_library / "testuser"
         user_file.write_text("not a directory")
 
-        assets = fetch_local_assets(immich_library, "testuser", 0.0)
+        assets = fetch_local_assets(immich_library, "testuser", 0)
 
         assert assets == []
 
@@ -139,7 +139,7 @@ class TestFetchLocalAssets:
         mid_file.write_text("mid")
         deep_file.write_text("deep")
 
-        assets = fetch_local_assets(immich_library, "testuser", 0.0)
+        assets = fetch_local_assets(immich_library, "testuser", 0)
 
         assert len(assets) == 3
         paths = [asset[0] for asset in assets]
@@ -166,7 +166,7 @@ class TestFetchLocalAssets:
         ignored2.write_text("{}")
         ignored3.write_text("data")
 
-        assets = fetch_local_assets(immich_library, "testuser", 0.0)
+        assets = fetch_local_assets(immich_library, "testuser", 0)
 
         # Should only get media files
         assert len(assets) == 2
@@ -185,15 +185,14 @@ class TestFetchLocalAssets:
         file_path = user_dir / "test.jpg"
         content = "A" * 1024  # 1 KB
         file_path.write_text(content)
+        current_time = time.time()
+        os.utime(file_path, (current_time, current_time))
 
-        assets = fetch_local_assets(immich_library, "testuser", 0.0)
+        assets = fetch_local_assets(immich_library, "testuser", 0)
 
         assert len(assets) == 1
         path, size, timestamp = assets[0]
 
-        assert isinstance(path, Path)
         assert path == file_path
-        assert isinstance(size, int)
         assert size == 1024
-        assert isinstance(timestamp, float)
-        assert timestamp > 0
+        assert timestamp / 1_000_000_000 == current_time
