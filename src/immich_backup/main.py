@@ -5,7 +5,7 @@ from datetime import datetime
 from croniter import croniter
 
 from immich_backup.schemas import Settings
-from immich_backup.sync_script import run_sync_logic
+from immich_backup.sync import sync_all_users
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def main() -> None:
         now = datetime.now()
         sleep_secs = croniter(configs.cron_schedule, now).get_next(float) - now.timestamp()
         time.sleep(max(configs.min_sleep_seconds, sleep_secs))
-        run_sync_logic(configs)
+        sync_all_users(configs)
 
 
 if __name__ == "__main__":

@@ -8,27 +8,25 @@ from immich_backup.schemas import User, UserConfig
 
 
 def test_load_from_existing_file(tmp_path: Path):
-    """Test loading UserSync from an existing JSON file."""
     users_file = tmp_path / "users.json"
     test_data = {
         "users": [
-            {
-                "username": "testuser",
-                "asset_created_after": "2024-01-01T00:00:00+00:00",
-            }
+            {"username": "testuser", "asset_created_after": "2024-01-01"},
+            {"username": "testuser2", "asset_created_after": "2024-01-01T00:00:00"},
+            {"username": "testuser3", "asset_created_after": "2024-01-01T00:00:00Z"},
+            {"username": "testuser4", "asset_created_after": "2024-01-01T00:00:00+00:00"},
         ]
     }
     users_file.write_text(json.dumps(test_data))
 
     user_sync = UserConfig.load(path=users_file, generate_default=False)
-
-    assert len(user_sync.users) == 1
+    assert len(user_sync.users) == 4
     assert user_sync.users[0].username == "testuser"
-    assert user_sync.users[0].asset_created_after == datetime(2024, 1, 1, tzinfo=UTC)
+    for user in user_sync.users:
+        assert user.asset_created_after == datetime(2024, 1, 1, tzinfo=UTC)
 
 
 def test_load_from_nonexistent_file(tmp_path: Path):
-    """Test loading from a non-existent file raises FileNotFoundError."""
     nonexistent_file = tmp_path / "nonexistent.json"
 
     with pytest.raises(FileNotFoundError, match="Config file not found"):
@@ -36,15 +34,9 @@ def test_load_from_nonexistent_file(tmp_path: Path):
 
 
 def test_save_to_file(tmp_path: Path):
-    """Test saving UserSync to a JSON file."""
     users_file = tmp_path / "users.json"
     user_sync = UserConfig(
-        users=[
-            User(
-                username="alice",
-                asset_created_after=datetime(2023, 6, 15, 10, 30, tzinfo=UTC),
-            )
-        ]
+        users=[User(username="alice", asset_created_after=datetime(2023, 6, 15, 10, 30, tzinfo=UTC))]
     )
 
     user_sync.save(users_file)
@@ -55,7 +47,6 @@ def test_save_to_file(tmp_path: Path):
 
 
 def test_save_and_load_roundtrip(tmp_path: Path):
-    """Test that saving and loading preserves data."""
     users_file = tmp_path / "users.json"
     original = UserConfig(
         users=[
@@ -75,7 +66,6 @@ def test_save_and_load_roundtrip(tmp_path: Path):
 
 
 def test_empty_users_list(tmp_path: Path):
-    """Test UserSync with empty users list."""
     users_file = tmp_path / "users.json"
     user_sync = UserConfig(users=[])
 
@@ -86,7 +76,6 @@ def test_empty_users_list(tmp_path: Path):
 
 
 def test_user_defaults():
-    """Test User model with default values."""
     user = User(username="defaultuser")
     assert user.username == "defaultuser"
     assert user.asset_created_after == datetime(1970, 1, 1, tzinfo=UTC)

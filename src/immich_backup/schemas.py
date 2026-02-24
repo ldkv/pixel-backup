@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar, Self
 
-from pydantic import AwareDatetime, BaseModel
+from pydantic import BaseModel, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,13 @@ class Settings(ConfigBase):
 
 class User(BaseModel):
     username: str
-    asset_created_after: AwareDatetime = datetime(1970, 1, 1, tzinfo=UTC)
+    asset_created_after: datetime = datetime(1970, 1, 1, tzinfo=UTC)
+
+    @field_validator("asset_created_after", mode="after")
+    def ensure_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            return v.replace(tzinfo=UTC)
+        return v.astimezone(UTC)
 
 
 class UserConfig(ConfigBase):

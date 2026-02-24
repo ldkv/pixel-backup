@@ -9,7 +9,6 @@ from immich_backup.schemas import Settings, User, UserConfig
 logger = logging.getLogger(__name__)
 
 GIGABYTE = 1024**3
-AVERAGE_ASSET_BYTES = 500 * 1024  # 500KB
 
 
 def get_folder_size_gb(path: Path) -> float:
@@ -17,7 +16,7 @@ def get_folder_size_gb(path: Path) -> float:
     return total_bytes / GIGABYTE
 
 
-def run_sync_logic(configs: Settings) -> None:
+def sync_all_users(configs: Settings) -> None:
     current_gb = get_folder_size_gb(configs.syncthing_dir)
     if current_gb >= configs.lower_limit_gb:
         logger.info(f"Throttled: {current_gb:.2f}GB. Waiting for space.")
