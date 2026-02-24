@@ -14,24 +14,26 @@ class ConfigBase(BaseModel):
     path: ClassVar[Path]
 
     @classmethod
-    def load(cls, generate_default: bool = False) -> Self:
-        if cls.path.exists():
-            with cls.path.open("r") as f:
+    def load(cls, path: Path | None = None, generate_default: bool = False) -> Self:
+        target_path = path or cls.path
+        if target_path.exists():
+            with target_path.open("r") as f:
                 data = f.read()
 
             return cls.model_validate_json(data)
 
         if not generate_default:
-            raise FileNotFoundError(f"Config file not found at {cls.path=}.")
+            raise FileNotFoundError(f"Config file not found at {target_path=}.")
 
-        logger.warning(f"Config file not found at {cls.path=}. Generate default config.")
+        logger.warning(f"Config file not found at {target_path=}. Generate default config.")
         configs = cls()
         configs.save()
         return configs
 
-    def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w") as f:
+    def save(self, path: Path | None = None) -> None:
+        target_path = path or self.path
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with target_path.open("w") as f:
             f.write(self.model_dump_json(indent=4))
 
 
@@ -51,13 +53,7 @@ class User(BaseModel):
     asset_created_after: AwareDatetime = datetime(1970, 1, 1, tzinfo=UTC)
 
 
-class UserSync(ConfigBase):
+class UserConfig(ConfigBase):
     path: ClassVar[Path] = _CONFIGS_PATH / "users.json"
 
     users: list[User] = []
-
-
-class ImmichAsset(BaseModel):
-    id: str
-    size: int
-    originalPath: str
