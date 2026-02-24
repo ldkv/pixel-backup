@@ -5,15 +5,9 @@ from pathlib import Path
 
 from immich_backup.local_disk import fetch_local_assets
 from immich_backup.schemas import Settings, User, UserConfig
+from immich_backup.utils import GIGABYTE, get_folder_size_gb
 
 logger = logging.getLogger(__name__)
-
-GIGABYTE = 1024**3
-
-
-def get_folder_size_gb(path: Path) -> float:
-    total_bytes = sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink())
-    return total_bytes / GIGABYTE
 
 
 def sync_all_users(configs: Settings) -> None:
