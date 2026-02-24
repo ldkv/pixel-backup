@@ -2,6 +2,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar, Self
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, field_validator
 
@@ -45,7 +46,15 @@ class Settings(ConfigBase):
     upper_limit_gb: float = 20.0
     lower_limit_gb: float = 5.0
     cron_schedule: str = "0 0 * * *"  # Default: every day at midnight
+    timezone: ZoneInfo = ZoneInfo("UTC")
     min_sleep_seconds: int = 60
+
+    @field_validator("timezone", mode="before")
+    def validate_timezone(cls, timezone: str) -> ZoneInfo:
+        try:
+            return ZoneInfo(timezone)
+        except Exception:
+            raise ValueError(f"Invalid timezone: {timezone}")
 
 
 class User(BaseModel):
@@ -53,10 +62,12 @@ class User(BaseModel):
     asset_created_after: datetime = datetime(1970, 1, 1, tzinfo=UTC)
 
     @field_validator("asset_created_after", mode="after")
-    def ensure_utc(cls, v: datetime) -> datetime:
-        if v.tzinfo is None:
-            return v.replace(tzinfo=UTC)
-        return v.astimezone(UTC)
+    def ensure_utc(cls, dt: datetime) -> datetime:
+        """Always use UTC to ensure a fixed datetime reference."""
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=UTC)
+
+        return dt.astimezone(UTC)
 
 
 class UserConfig(ConfigBase):

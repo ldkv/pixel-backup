@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def sync_all_users(configs: Settings) -> None:
     current_gb = get_folder_size_gb(configs.syncthing_dir)
     if current_gb >= configs.lower_limit_gb:
-        logger.info(f"Throttled: {current_gb:.2f}GB. Waiting for space.")
+        logger.info(f"Skipped. Sync folder is still full: {current_gb:.2f}GB. Waiting for space.")
         return
 
     remaining_bytes = (configs.upper_limit_gb - current_gb) * GIGABYTE
@@ -24,26 +24,28 @@ def sync_all_users(configs: Settings) -> None:
             continue
 
         user_quota_bytes = remaining_bytes / (len(users.users) - index)
-        added_bytes = sync_per_user(configs, user, user_quota_bytes)
+        added_bytes, last_asset_created_at = sync_per_user(configs, user, user_quota_bytes)
         if not added_bytes:
             logger.info(f"No new assets for user {user.username}.")
             continue
 
+        logger.info(f"Added {added_bytes / GIGABYTE:.2f}GB of videos for user {user.username}.")
         remaining_bytes -= added_bytes
+        user.asset_created_after = datetime.fromtimestamp(last_asset_created_at, tz=UTC)
         users.save()
 
 
-def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> int:
+def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> tuple[int, float]:
     last_asset_created_at = user.asset_created_after.timestamp()
     assets = fetch_local_assets(configs.immich_library_dir, user.username, last_asset_created_at)
     if not assets:
-        return 0
+        return 0, last_asset_created_at
 
     added_bytes = 0
     for asset_path, asset_size, asset_created_at in sorted(assets, key=lambda a: a[2]):
         dest = Path(configs.syncthing_dir) / asset_path.relative_to(configs.immich_library_dir)
         if dest.exists():
-            logger.warning(f"Destination {dest} already exists. Skipping {asset_path}.")
+            logger.warning(f"Skipping {asset_path=}. Destination already exists: {dest}")
             continue
 
         last_asset_created_at = asset_created_at
@@ -53,6 +55,4 @@ def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> int
         if added_bytes >= user_quota_bytes:
             break
 
-    user.asset_created_after = datetime.fromtimestamp(last_asset_created_at, tz=UTC)
-    logger.info(f"Added {added_bytes / GIGABYTE:.2f}GB of videos for user {user.username}.")
-    return added_bytes
+    return added_bytes, last_asset_created_at
