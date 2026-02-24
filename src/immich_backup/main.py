@@ -25,7 +25,7 @@ def main() -> None:
         sleep_secs = seconds_until_next_cron(configs.cron_schedule, now, configs.min_sleep_seconds)
         next_sync_time = now + timedelta(seconds=sleep_secs)
 
-        logger.info(f"Next sync at {next_sync_time}. Sleeping for {sleep_secs / 60:.2f} minutes...")
+        logger.info(f"Next sync at {next_sync_time}. Sleeping for {sleep_secs:.0f} seconds...")
         time.sleep(sleep_secs)
 
         sync_all_users(configs)

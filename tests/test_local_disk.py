@@ -26,7 +26,7 @@ class TestIsMediaFile:
         for filename in media_files:
             file_path = tmp_path / filename
             file_path.touch()
-            assert is_media_file(file_path), f"{filename} should be recognized as media file"
+            assert is_media_file(file_path.name), f"{filename} should be recognized as media file"
 
     def test_ignored_extensions(self, tmp_path: Path):
         ignored_files = [
@@ -47,12 +47,7 @@ class TestIsMediaFile:
         for filename in ignored_files:
             file_path = tmp_path / filename
             file_path.touch()
-            assert not is_media_file(file_path), f"{filename} should be ignored"
-
-    def test_directory_not_media_file(self, tmp_path: Path):
-        directory = tmp_path / "folder"
-        directory.mkdir()
-        assert not is_media_file(directory)
+            assert not is_media_file(file_path.name), f"{filename} should be ignored"
 
 
 class TestFetchLocalAssets:

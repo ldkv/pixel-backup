@@ -23,6 +23,7 @@ def sync_all_users(configs: Settings) -> None:
             continue
 
         user_quota_bytes = remaining_bytes / (len(users.users) - index)
+        logger.info(f"Syncing user {user.username} with quota of {user_quota_bytes / GIGABYTE:.2f}GB...")
         added_bytes, last_timestamp_ns = sync_per_user(configs, user, user_quota_bytes)
         if not added_bytes:
             logger.info(f"No new assets for user {user.username}.")
@@ -41,6 +42,7 @@ def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> tup
         return 0, last_timestamp_ns
 
     added_bytes = 0
+    logger.info(f"Found {len(assets)} new assets for user {user.username}. Generating links...")
     for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
         dest = Path(configs.syncthing_dir) / asset_path.relative_to(configs.immich_library_dir)
         if dest.exists():
