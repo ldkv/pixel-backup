@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from immich_backup.schemas import User, UserConfig
+from pixel_backup.schemas import User, UserConfig
 
 
 def test_load_from_existing_file(tmp_path: Path):

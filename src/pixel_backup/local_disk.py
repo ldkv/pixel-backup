@@ -18,8 +18,8 @@ IGNORED_EXTENSIONS = {
 }
 
 
-def fetch_local_assets(immich_library_dir: Path, user: str, last_timestamp_ns: int) -> list[tuple[Path, int, int]]:
-    user_path = immich_library_dir / user
+def fetch_local_assets(library_dir: Path, user: str, last_timestamp_ns: int) -> list[tuple[Path, int, int]]:
+    user_path = library_dir / user
     if not user_path.is_dir():
         logger.error(f"{user_path=} does not exist or is not a directory.")
         return []

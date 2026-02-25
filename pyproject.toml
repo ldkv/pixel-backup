@@ -1,7 +1,7 @@
 [project]
-name = "immich-backup"
+name = "pixel-backup"
 version = "0.1.0"
-description = "Automatically backup immich assets to Google Photos using Syncthing."
+description = "Automatically backup local library to Google Pixel using Syncthing."
 readme = "README.md"
 authors = [{ name = "Vu LE", email = "ledkvu@gmail.com" }]
 requires-python = ">=3.14"
@@ -11,7 +11,7 @@ dependencies = ["croniter==6.0.0", "pydantic==2.12.5", "tzdata==2025.3"]
 dev = ["pytest==9.0.2", "ruff==0.15.2", "ty==0.0.18"]
 
 [project.scripts]
-immich-backup = "immich_backup.main:main"
+pixel-backup = "pixel_backup.main:main"
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]

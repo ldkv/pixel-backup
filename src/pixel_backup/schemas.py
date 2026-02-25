@@ -41,7 +41,7 @@ class ConfigBase(BaseModel):
 class Settings(ConfigBase):
     path: ClassVar[Path] = _CONFIGS_PATH / "settings.json"
 
-    immich_library_dir: Path = Path("/immich/docker_data/library")
+    library_dir: Path = Path("/immich/docker_data/library")
     syncthing_dir: Path = Path("/immich/syncthing")
     upper_limit_gb: float = 20.0
     lower_limit_gb: float = 5.0

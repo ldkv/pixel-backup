@@ -1,7 +1,7 @@
 {
     "users": [
         {
-            "username": "<IMMICH_USERNAME>",
+            "username": "<USERNAME>",
             "asset_created_after": "1970-01-01T00:00:00"
         }
     ]

@@ -1,33 +1,25 @@
 services:
-  immich-pixel-backup:
+  pixel-backup:
     build: .
-    container_name: immich_pixel_backup
+    container_name: pixel_backup
     restart: unless-stopped
     volumes:
       - /immich:/immich # Must be parent of syncthing volume
       - ./configs:/app/configs
       - /etc/localtime:/etc/localtime:ro
-    environment:
-      - IMMICH_URL=http://immich:2283
-      - SYNCTHING_URL=http://syncthing:8384
-      - SYNC_DIR=/immich/syncthing
-      - UPPER_LIMIT_GB=20
-      - LOWER_LIMIT_GB=5
-      - CRON_SCHEDULE=0 */6 * * *
-      - MIN_SLEEP_SECONDS=60
 
   syncthing:
     image: syncthing/syncthing:latest
-    container_name: immich_syncthing
+    container_name: syncthing
     restart: unless-stopped
     volumes:
-      - /immich/syncthing:/immich/syncthing # Must match logic container path
+      - /immich/syncthing:/immich/syncthing
       - syncthing_config:/config
       - /etc/localtime:/etc/localtime:ro
     ports:
       - "8384:8384" # GUI
-      - "22000:22000/tcp" # Syncthing Sync Protocol (TCP)
-      - "22000:22000/udp" # Syncthing Sync Protocol (UDP)
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
 
 volumes:
   syncthing_config:

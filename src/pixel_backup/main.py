@@ -2,9 +2,9 @@ import logging
 import time
 from datetime import datetime, timedelta
 
-from immich_backup.schemas import Settings
-from immich_backup.sync import sync_all_users
-from immich_backup.utils import seconds_until_next_cron
+from pixel_backup.schemas import Settings
+from pixel_backup.sync import sync_all_users
+from pixel_backup.utils import seconds_until_next_cron
 
 logger = logging.getLogger(__name__)
 

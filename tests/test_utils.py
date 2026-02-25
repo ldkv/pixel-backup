@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from immich_backup.utils import GIGABYTE, get_folder_size_gb, seconds_until_next_cron
+from pixel_backup.utils import GIGABYTE, get_folder_size_gb, seconds_until_next_cron
 
 
 class TestSecondsUntilNextCron:

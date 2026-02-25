@@ -1,4 +1,4 @@
-# google-photos-pixel-backup
+# pixel-backup
 
 Automatically sync your Immich library to Google Photos using an old Google Pixel as a backup device.
 
@@ -51,8 +51,8 @@ Includes both the backup tool and Syncthing.
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/<you>/immich-backup.git
-cd immich-backup
+git clone https://github.com/ldkv/pixel-backup.git
+cd pixel-backup
 ```
 
 **2. Copy the example configs**
@@ -94,8 +94,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 **2. Clone and install**
 
 ```bash
-git clone https://github.com/<you>/immich-backup.git
-cd immich-backup
+git clone https://github.com/ldkv/pixel-backup.git
+cd pixel-backup
 uv sync
 ```
 
@@ -110,7 +110,7 @@ cp -r configs_example configs
 **5. Run it**
 
 ```bash
-uv run immich-backup
+uv run pixel-backup
 ```
 
 ## Syncthing Setup Guide
@@ -144,7 +144,7 @@ Controls sync behavior, paths, quotas, and scheduling.
 
 ```json
 {
-  "immich_library_dir": "/immich/docker_data/library",
+  "library_dir": "/immich/docker_data/library",
   "syncthing_dir": "/immich/syncthing",
   "upper_limit_gb": 20.0,
   "lower_limit_gb": 5.0,
@@ -154,15 +154,15 @@ Controls sync behavior, paths, quotas, and scheduling.
 }
 ```
 
-| Field                | Description                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| `immich_library_dir` | Path to your library. Must be on same filesystem as `syncthing_dir` for hard links.   |
-| `syncthing_dir`      | Directory where hard links are created for Syncthing to sync.                         |
-| `upper_limit_gb`     | Maximum Syncthing folder size in GB. Tool stops adding files when reached.            |
-| `lower_limit_gb`     | Threshold in GB. If folder exceeds this size, skip run to allow Syncthing to sync.    |
-| `cron_schedule`      | Standard cron syntax for scheduling runs. Default `0 0 * * *` runs daily at midnight. |
-| `timezone`           | IANA timezone name for interpreting cron schedule (e.g., `America/New_York`).         |
-| `min_sleep_seconds`  | Minimum seconds between runs, regardless of cron interval. Prevents excessive runs.   |
+| Field               | Description                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `library_dir`       | Path to your library. Must be on same filesystem as `syncthing_dir` for hard links.   |
+| `syncthing_dir`     | Directory where hard links are created for Syncthing to sync.                         |
+| `upper_limit_gb`    | Maximum Syncthing folder size in GB. Tool stops adding files when reached.            |
+| `lower_limit_gb`    | Threshold in GB. If folder exceeds this size, skip run to allow Syncthing to sync.    |
+| `cron_schedule`     | Standard cron syntax for scheduling runs. Default `0 0 * * *` runs daily at midnight. |
+| `timezone`          | IANA timezone name for interpreting cron schedule (e.g., `America/New_York`).         |
+| `min_sleep_seconds` | Minimum seconds between runs, regardless of cron interval. Prevents excessive runs.   |
 
 **Note:** If this file is missing, the tool will auto-generate it with the default values shown above.
 
@@ -186,7 +186,7 @@ Defines which Immich users to sync and tracks progress.
 {
   "users": [
     {
-      "username": "<IMMICH_USERNAME>",
+      "username": "<USERNAME>",
       "asset_created_after": "1970-01-01T00:00:00"
     }
   ]

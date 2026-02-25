@@ -2,9 +2,9 @@ import logging
 import os
 from pathlib import Path
 
-from immich_backup.local_disk import fetch_local_assets
-from immich_backup.schemas import Settings, User, UserConfig
-from immich_backup.utils import GIGABYTE, get_folder_size_gb
+from pixel_backup.local_disk import fetch_local_assets
+from pixel_backup.schemas import Settings, User, UserConfig
+from pixel_backup.utils import GIGABYTE, get_folder_size_gb
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +37,14 @@ def sync_all_users(configs: Settings) -> None:
 
 def sync_per_user(configs: Settings, user: User, user_quota_bytes: float) -> tuple[int, int]:
     last_timestamp_ns = user.last_timestamp_ns
-    assets = fetch_local_assets(configs.immich_library_dir, user.username, last_timestamp_ns)
+    assets = fetch_local_assets(configs.library_dir, user.username, last_timestamp_ns)
     if not assets:
         return 0, last_timestamp_ns
 
     added_bytes = 0
     logger.info(f"Found {len(assets)} new assets for user {user.username}. Generating links...")
     for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
-        dest = Path(configs.syncthing_dir) / asset_path.relative_to(configs.immich_library_dir)
+        dest = Path(configs.syncthing_dir) / asset_path.relative_to(configs.library_dir)
         if dest.exists():
             logger.warning(f"Skipping {asset_path=}. Destination already exists: {dest}")
             continue
