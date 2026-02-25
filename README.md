@@ -1,56 +1,52 @@
 # google-photos-pixel-backup
 
-Automatically create a portion of new photos from a given directory based on user defined quota to a separate folder for syncing to Google Photos through a Google Pixel phone.
+Automatically sync your Immich library to Google Photos using an old Google Pixel as a backup device.
 
-## Why do I need this?
+## Why?
 
-This service serves my niche use case where I use Immich as my main photo management solution but also
-want to back up my Immich assets to Google Photos through a Google Pixel phone with unlimited storage, such as Google Pixel 1 (original quality) up to Pixel 5 (compressed quality).
+Older Google Pixels (Pixel 1 with original quality, Pixel 2-5 with compressed quality) offer unlimited photo storage to Google Photos. While they make excellent backup devices for Immich libraries, the standard Syncthing approach has limitations:
 
-To achieve this, I would need to sync photos from my main phone to Immich, then manually copy them to the Pixel's local storage, which is tedious and error-prone. Another common solution is to setup Syncthing both on the main phone and on the old Pixel, which also has its own issues:
+- Running Syncthing on your primary phone requires persistent background services that drain battery
+- Photos sync twice from your primary phone: first to Immich, then separately to the backup Pixel
+- Limited storage on the backup device requires constant manual management
+- Multi-user setups with separate devices become difficult to maintain
 
-- I have to install a permanent background service on my main phone, which is undesirable for battery and privacy reasons.
-- My main phone will have to sync all photos twice, once to Immich and once to the Pixel, which is inefficient and drains more battery.
-- The old Pixel has very limited storage, so I can only sync a portion of the photos, which requires manual management to avoid running out of space.
-- If I want to sync for multiple users with multiple phones, the process becomes even more complicated and unmanageable.
-
-Since all photos already exist in the Immich library, I have the idea of syncing directly from its local disk as a source of truth, with only one instance of Syncthing running permanently on the server. The only missing piece is a tool that can automatically manage the syncing process, and thus `immich-backup` was born.
+This tool optimizes the workflow by syncing directly from your Immich library using hard links, with Syncthing running only on the server. This eliminates redundant transfers and simplifies the backup process.
 
 ## Features
 
-This tool provides the following features:
-
-- **Automated Syncing**: Runs on a cron schedule to automatically sync new assets from the Immich library to a Syncthing-watched folder.
-- **Per-User Syncing**: Supports multiple Immich users with independent sync progress tracking
-- **Quota Management**: Maintains the Syncthing folder size within user-defined upper and lower limits to prevent overfilling the Pixel's storage.
-- Minimal manual intervention after setup: the only manual step is to free-up space on the backup Pixel once the photos are synced to Google Photos Cloud. The tool handles the rest of the process automatically.
+- **Automated Syncing**: Cron-scheduled synchronization from library to Syncthing folder
+- **Per-User Tracking**: Multiple users with independent sync progress
+- **Library Agnostic**: Works with any local photo library organized by user folders, not just Immich
+- **Quota Management**: Configurable size limits prevent overwhelming backup device storage
+- **Low Maintenance**: Requires only periodic cleanup on the backup device after initial setup
 
 ## How It Works
 
 ```
-Immich library  ──hard-link──▶  Syncthing folder  ──sync──▶  Phone / Cloud
-(/immich/docker_data/library)   (/immich/syncthing)           (Google Photos, etc.)
+Local library  ──hard-link──▶  Syncthing folder  ──sync──▶  Backup Pixel  ──upload──▶  Google Photos
 ```
 
-1. On each scheduled run, the tool checks the current size of the Syncthing folder.
-2. If it is already above `lower_limit_gb`, it skips the run and waits — Syncthing is still catching up.
-3. Otherwise, it calculates available quota (`upper_limit_gb − current size`) and hard-links new assets from all specified users (directories) into the Syncthing folder, oldest files first, until the quota is consumed.
-4. Per-user progress is tracked with nanosecond-precision timestamps and persisted in `users.json` so syncs resume exactly where they left off.
-5. Once the photos are synced to the Pixel and then to Google Photos, users can free up space on the Pixel for the next batch. The Syncthing folder will be automatically cleared as a result, and the tool will add more files on the next run.
+1. Tool runs on configured cron schedule and checks Syncthing folder size
+2. If folder size exceeds lower limit, run is skipped (allows Syncthing to catch up)
+3. When space is available, new assets are hard-linked from the library, oldest first
+4. Progress is tracked with nanosecond precision and persisted across runs
+5. Syncthing syncs to Pixel → uploads to Google Photos → manual cleanup frees space for next batch
 
-> **Important:** Hard links require that the Immich library and the Syncthing folder reside on the **same filesystem**. No extra disk space is used by the links.
+> **Important:** Hard links require that the local library and Syncthing folder reside on the same filesystem. This approach uses no additional disk space.
 
 ## Prerequisites
 
-- A local library on disk, which separate folders for each user, e.g. `/library/alice/`, `/library/bob/`, etc.
-- [Syncthing](https://syncthing.net/) (or the Docker Compose setup below).
-- Docker + Docker Compose **or** Python 3.14+ with [uv](https://docs.astral.sh/uv/).
+- A local library with separate user folders (e.g., `/library/alice/`, `/library/bob/`)
+- [Syncthing](https://syncthing.net/) (included in the Docker Compose setup)
+- Docker + Docker Compose **or** Python 3.14+ with [uv](https://docs.astral.sh/uv/)
+- A Google Pixel device with unlimited photo storage capability
 
 ## Installation
 
-### Option A — Docker Compose (recommended)
+### Option A — Docker Compose (Recommended)
 
-This is the easiest path. The compose file starts both `immich-backup` and Syncthing together.
+Includes both the backup tool and Syncthing.
 
 **1. Clone the repository**
 
@@ -59,37 +55,35 @@ git clone https://github.com/<you>/immich-backup.git
 cd immich-backup
 ```
 
-**2. Create the config directory from the examples**
+**2. Copy the example configs**
 
 ```bash
 cp -r configs_example configs
 ```
 
-**3. Edit the configuration files** (see [Configuration](#configuration) below).
+**3. Edit configuration files** (`configs/settings.json` and `configs/users.json` — see Configuration section)
 
-**4. Adjust volume paths in `docker-compose.yml`**
+**4. Update volume paths in `docker-compose.yml`**
 
-The default mounts assume your Immich data lives at `/immich` on the host:
+Default configuration assumes library at `/immich`:
 
 ```yaml
 volumes:
-  - /immich:/immich # parent of both library and Syncthing dirs
-  - ./configs:/app/configs # config files
+  - /immich:/immich # adjust if your setup is special
+  - ./configs:/app/configs
 ```
 
-Change `/immich` to wherever your Immich data is stored.
-
-**5. Start the services**
+**5. Launch it**
 
 ```bash
 docker compose up -d --build
 ```
 
-The Syncthing web UI is available at `http://localhost:8384`.
+Syncthing UI: `http://localhost:8384`
 
 ---
 
-### Option B — Local Python (uv)
+### Option B — Local Python Installation
 
 **1. Install uv**
 
@@ -105,27 +99,48 @@ cd immich-backup
 uv sync
 ```
 
-**3. Create the config directory from the examples**
+**3. Copy configs**
 
 ```bash
 cp -r configs_example configs
 ```
 
-**4. Edit the configuration files** (see [Configuration](#configuration) below).
+**4. Edit configuration files** (see Configuration section)
 
-**5. Run**
+**5. Run it**
 
 ```bash
 uv run immich-backup
 ```
 
+## Syncthing Setup Guide
+
+### Server Setup
+
+1. Go to Syncthing UI (default `http://localhost:8384`) and complete initial setup
+2. Create a `syncthing` folder on the same filesystem as your library. Example: if your library is at `/immich/docker_data/library`, create `/immich/syncthing`
+3. In Syncthing, add a folder pointing to your `syncthing` directory where hard links will be created
+
+### Pixel Device Setup
+
+1. Create a sync folder on the Pixel (e.g., `Pictures`). **Important:** For multi-user setups, avoid the `DCIM` directory to prevent conflicts with Google Photos
+2. Install Syncthing from the Play Store
+3. Connect to your server's Syncthing instance using the in-app pairing instructions
+4. Share the server's `syncthing` folder to the Pixel at your chosen location (e.g., `Pictures`). The tool automatically manages per-user subfolders
+5. Start syncing. Subfolders for each user (e.g., `Pictures/alice`, `Pictures/bob`) will be created automatically
+6. Configure Google Photos backup:
+   - Sign in with each user's Google account
+   - Navigate to Settings → Back up & sync → Back up device folders
+   - Enable backup for the corresponding user folder
+7. After all users' photos upload to Google Photos, delete photos from the Pixel to free space for the next sync cycle
+
 ## Configuration
 
-All configuration lives in two JSON files inside the `configs/` directory.
+Configuration is managed through two JSON files in the `configs/` directory.
 
 ### `configs/settings.json`
 
-Controls global behaviour — paths, disk quotas, and the sync schedule.
+Controls sync behavior, paths, quotas, and scheduling.
 
 ```json
 {
@@ -139,33 +154,33 @@ Controls global behaviour — paths, disk quotas, and the sync schedule.
 }
 ```
 
-| Field                | Type   | Default                       | Description                                                                                                         |
-| -------------------- | ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `immich_library_dir` | path   | `/immich/docker_data/library` | Root of the Immich local library. Must be on the same filesystem as `syncthing_dir`.                                |
-| `syncthing_dir`      | path   | `/immich/syncthing`           | Directory watched by Syncthing. Files are hard-linked here.                                                         |
-| `upper_limit_gb`     | float  | `20.0`                        | Maximum total size (GB) to maintain in the Syncthing folder. The tool will not add more files once this is reached. |
-| `lower_limit_gb`     | float  | `5.0`                         | If the Syncthing folder is already this large or larger, skip the sync run and wait for Syncthing to clear space.   |
-| `cron_schedule`      | string | `0 0 * * *`                   | Standard 5-field cron expression controlling when syncs run.                                                        |
-| `timezone`           | string | `UTC`                         | IANA timezone name used to interpret `cron_schedule` (e.g. `Europe/Paris`, `America/New_York`).                     |
-| `min_sleep_seconds`  | int    | `60`                          | Minimum number of seconds to wait between runs, regardless of the cron interval.                                    |
+| Field                | Description                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `immich_library_dir` | Path to your library. Must be on same filesystem as `syncthing_dir` for hard links.   |
+| `syncthing_dir`      | Directory where hard links are created for Syncthing to sync.                         |
+| `upper_limit_gb`     | Maximum Syncthing folder size in GB. Tool stops adding files when reached.            |
+| `lower_limit_gb`     | Threshold in GB. If folder exceeds this size, skip run to allow Syncthing to sync.    |
+| `cron_schedule`      | Standard cron syntax for scheduling runs. Default `0 0 * * *` runs daily at midnight. |
+| `timezone`           | IANA timezone name for interpreting cron schedule (e.g., `America/New_York`).         |
+| `min_sleep_seconds`  | Minimum seconds between runs, regardless of cron interval. Prevents excessive runs.   |
 
-**If `settings.json` is missing**, the tool auto-generates it with the defaults above.
+**Note:** If this file is missing, the tool will auto-generate it with the default values shown above.
 
-#### Cron schedule examples
+#### Cron Schedule Examples
 
-| `cron_schedule` | Meaning                    |
-| --------------- | -------------------------- |
-| `0 0 * * *`     | Every day at midnight      |
-| `0 */6 * * *`   | Every 6 hours              |
-| `30 3 * * *`    | Every day at 03:30         |
-| `0 3 * * 1`     | Every Monday at 03:00      |
-| `* * * * *`     | Every minute (for testing) |
+| Expression    | When it runs           |
+| ------------- | ---------------------- |
+| `0 0 * * *`   | Daily at midnight      |
+| `0 */6 * * *` | Every 6 hours          |
+| `30 3 * * *`  | Daily at 03:30         |
+| `0 3 * * 1`   | Mondays at 03:00       |
+| `* * * * *`   | Every minute (testing) |
 
 ---
 
 ### `configs/users.json`
 
-Lists the Immich users whose assets should be backed up, and tracks sync progress.
+Defines which Immich users to sync and tracks progress.
 
 ```json
 {
@@ -178,40 +193,37 @@ Lists the Immich users whose assets should be backed up, and tracks sync progres
 }
 ```
 
-| Field                 | Type     | Description                                                                                                                                                                                                                           |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `username`            | string   | **Required.** The Immich username. This must match the directory name under `immich_library_dir` (i.e. `<immich_library_dir>/<username>/` must exist).                                                                                |
-| `asset_created_after` | datetime | Only sync assets created **after** this timestamp. Accepts ISO 8601 format (`YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, or with timezone offset). All times are stored as UTC internally. Set to `"1970-01-01T00:00:00"` to sync everything. |
-| `last_timestamp_ns`   | int      | **Auto-managed.** Nanosecond timestamp of the last successfully synced file. Updated automatically after each run. Do not edit unless you want to force a resync.                                                                     |
+| Field                 | Description                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `username`            | **Required.** Must match folder name in library directory.                                          |
+| `asset_created_after` | Only sync assets created after this timestamp (ISO 8601). Use `1970-01-01T00:00:00` for all assets. |
+| `last_timestamp_ns`   | **Auto-managed.** Nanosecond timestamp of last synced file. Modify only to force resync.            |
 
-**Multiple users** are supported. The available quota is distributed equally among them each run:
+**Multiple Users:** The tool supports multiple users, with the available quota distributed equally among them:
 
 ```json
 {
   "users": [
-    {
-      "username": "alice",
-      "asset_created_after": "2024-01-01T00:00:00"
-    },
-    {
-      "username": "bob",
-      "asset_created_after": "2024-06-01T00:00:00"
-    }
+    { "username": "alice", "asset_created_after": "2024-01-01T00:00:00" },
+    { "username": "bob", "asset_created_after": "2024-06-01T00:00:00" }
   ]
 }
 ```
 
-> **`users.json` is required.** The tool will exit with an error on startup if this file is missing.
+> **Note:** This file is required. The tool will exit with an error if `users.json` is not found.
 
 ---
 
 ## Usage
 
-Once running, the tool operates fully automatically:
+Once configured and running, the tool operates automatically:
 
-- It sleeps until the next scheduled time, then wakes up and syncs new assets.
-- Progress is saved to `configs/users.json` after each run.
-- Logs are written to stdout with timestamps:
+- Waits until the next scheduled cron time
+- Syncs new assets according to quota and user configuration
+- Saves progress to `configs/users.json`
+- Returns to sleep until the next scheduled run
+
+Logs look like this:
 
 ```
 [2026-02-24 00:00:00] INFO: Next sync at 2026-02-25 00:00:00. Sleeping for 1440 minutes...
@@ -219,9 +231,13 @@ Once running, the tool operates fully automatically:
 [2026-02-25 00:00:01] INFO: Synced 42 files (1.3 GB) for alice.
 ```
 
-### Forcing a resync
+### Forcing a Resync
 
-To resync assets for a user from a specific date, edit `asset_created_after` in `configs/users.json` and remove or reset `last_timestamp_ns`:
+To resync from a specific date, edit `configs/users.json`:
+
+1. Update `asset_created_after` to your desired start date
+2. Remove the `last_timestamp_ns` field if present
+3. Restart the service
 
 ```json
 {
@@ -230,51 +246,40 @@ To resync assets for a user from a specific date, edit `asset_created_after` in 
 }
 ```
 
-Then restart the service.
-
-### Stopping
+### Stopping the Service
 
 ```bash
-# Docker Compose
-docker compose down
-
-# uv
-# Ctrl+C in the terminal running immich-backup
+docker compose down  # Docker
+# or Ctrl+C          # Python
 ```
 
 ---
 
 ## Development
 
-The project uses [uv](https://docs.astral.sh/uv/) and [Task](https://taskfile.dev/).
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management and [Task](https://taskfile.dev/) for task automation.
 
 ```bash
-# Install all dependencies including dev tools
-uv sync
-
-# Run tests
-uv run pytest
-
-# Code quality (format + lint + type-check)
-task code-quality
-
-# Run all checks and tests
-task check-all
+uv sync           # Install all dependencies
+uv run pytest     # Run tests
+task code-quality # Run format, lint, and type checks
+task check-all    # Run all checks and tests
 ```
 
-Available tasks (`task --list`):
+Available tasks (run `task --list` for complete list):
 
-| Task           | Description                                  |
-| -------------- | -------------------------------------------- |
-| `dev-install`  | Install all dependencies including dev tools |
-| `format`       | Auto-format code with ruff                   |
-| `lint-fix`     | Fix linting issues with ruff                 |
-| `type-check`   | Run static type checker (ty)                 |
-| `code-quality` | Run format + lint + type checks              |
-| `test`         | Run pytest suite                             |
-| `check-all`    | Run all checks and tests                     |
-| `up`           | Start Docker Compose                         |
-| `down`         | Stop Docker Compose                          |
+| Command        | Description                        |
+| -------------- | ---------------------------------- |
+| `dev-install`  | Install dependencies and dev tools |
+| `format`       | Auto-format code with ruff         |
+| `lint-fix`     | Fix linting issues                 |
+| `type-check`   | Run static type checker (ty)       |
+| `code-quality` | Run all code quality checks        |
+| `test`         | Run pytest suite                   |
+| `check-all`    | Run all checks and tests           |
+| `up` / `down`  | Start/stop Docker Compose          |
+
+---
 
 ## License
 
