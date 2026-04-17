@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pixel_backup.schemas import Settings, User, UserConfig
-from pixel_backup.sync import sync_all_users, sync_per_user
+from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_user
 from pixel_backup.utils import GIGABYTE
 
 
@@ -26,10 +26,11 @@ class TestSyncPerUser:
         user = User(username="testuser", asset_created_after=datetime(2020, 1, 1, tzinfo=UTC))
         user_quota_bytes = 10000.0
 
-        added_bytes, _ = sync_per_user(configs, user, user_quota_bytes)
+        added_bytes, added_files, _ = sync_per_user(configs, user, user_quota_bytes)
 
         # Verify files were linked
         assert added_bytes > 0
+        assert added_files == 2
         assert (syncthing_dir / "testuser" / "photo1.jpg").exists()
         assert (syncthing_dir / "testuser" / "photo2.jpg").exists()
         # Verify they are hard links (same inode on Linux/Windows compatible check)
@@ -46,9 +47,10 @@ class TestSyncPerUser:
         user = User(username="testuser", asset_created_after=datetime(2020, 1, 1, tzinfo=UTC))
         user_quota_bytes = 10000.0
 
-        added_bytes, last_created_at = sync_per_user(configs, user, user_quota_bytes)
+        added_bytes, added_files, last_created_at = sync_per_user(configs, user, user_quota_bytes)
 
         assert added_bytes == 0
+        assert added_files == 0
         assert last_created_at == user.asset_created_after.timestamp() * 1_000_000_000
 
     def test_sync_skips_existing_destinations(self, tmp_path: Path):
@@ -71,10 +73,11 @@ class TestSyncPerUser:
         user = User(username="testuser", asset_created_after=datetime(2020, 1, 1, tzinfo=UTC))
         user_quota_bytes = 10000.0
 
-        added_bytes, _ = sync_per_user(configs, user, user_quota_bytes)
+        added_bytes, added_files, _ = sync_per_user(configs, user, user_quota_bytes)
 
         # No bytes should be added since file was skipped
         assert added_bytes == 0
+        assert added_files == 0
         assert dest_file.read_text() == "existing content"
 
     def test_sync_respects_quota(self, tmp_path: Path):
@@ -98,11 +101,12 @@ class TestSyncPerUser:
         user = User(username="testuser", asset_created_after=datetime(2020, 1, 1, tzinfo=UTC))
         user_quota_bytes = 1500  # Should allow only 1-2 files before hitting quota
 
-        added_bytes, last_created_at = sync_per_user(configs, user, user_quota_bytes)
+        added_bytes, added_files, last_created_at = sync_per_user(configs, user, user_quota_bytes)
 
         # Should stop after hitting quota
         assert added_bytes == 2000
-        synced_files = [f.name for f in (syncthing_dir / "testuser").glob("*.jpg")]
+        assert added_files == 2
+        synced_files = sorted(f.name for f in (syncthing_dir / "testuser").glob("*.jpg"))
         assert synced_files == ["photo2.jpg", "photo3.jpg"]
         assert last_created_at == datetime(2020, 1, 3).timestamp() * 1_000_000_000
 
@@ -127,11 +131,105 @@ class TestSyncPerUser:
         assert os.path.samefile(nested_file, dest_file)
 
 
+class TestDryRun:
+    def test_dry_run_does_not_create_links(self, tmp_path: Path):
+        library_dir = tmp_path / "library"
+        syncthing_dir = tmp_path / "syncthing"
+        user_dir = library_dir / "testuser"
+        user_dir.mkdir(parents=True)
+
+        file1 = user_dir / "photo1.jpg"
+        file1.write_text("content1")
+
+        configs = Settings(library_dir=library_dir, syncthing_dir=syncthing_dir)
+        user = User(username="testuser", asset_created_after=datetime(2020, 1, 1, tzinfo=UTC))
+
+        added_bytes, added_files, _ = sync_per_user(configs, user, 10000.0, dry_run=True)
+
+        assert added_bytes > 0
+        assert added_files == 1
+        assert not (syncthing_dir / "testuser" / "photo1.jpg").exists()
+
+    def test_dry_run_does_not_update_user_config(self, tmp_path: Path):
+        library_dir = tmp_path / "library"
+        syncthing_dir = tmp_path / "syncthing"
+        user_dir = library_dir / "testuser"
+        user_dir.mkdir(parents=True)
+
+        (user_dir / "photo.jpg").write_text("content")
+
+        user_config = UserConfig(
+            users=[User(username="testuser", asset_created_after=datetime(2020, 1, 1, tzinfo=UTC))]
+        )
+        original_ts = user_config.users[0].last_timestamp_ns
+
+        with patch("pixel_backup.sync.UserConfig.load") as mock_load:
+            mock_load.return_value = user_config
+            settings = Settings(
+                library_dir=library_dir,
+                syncthing_dir=syncthing_dir,
+                upper_limit_gb=1.0 / GIGABYTE,
+                lower_limit_gb=0.0,
+            )
+            sync_all_users(settings, dry_run=True)
+
+        assert user_config.users[0].last_timestamp_ns == original_ts
+
+
+class TestLinkWithRetry:
+    def test_successful_link(self, tmp_path: Path):
+        src = tmp_path / "source.txt"
+        src.write_text("hello")
+        dest = tmp_path / "dest.txt"
+
+        link_with_retry(src, dest)
+
+        assert dest.exists()
+        assert os.path.samefile(src, dest)
+
+    def test_retries_on_failure(self, tmp_path: Path):
+        src = tmp_path / "source.txt"
+        src.write_text("hello")
+        dest = tmp_path / "dest.txt"
+
+        call_count = 0
+        original_link = os.link
+
+        def flaky_link(s, d):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise OSError("Transient error")
+            original_link(s, d)
+
+        with patch("pixel_backup.sync.os.link", side_effect=flaky_link), patch("pixel_backup.sync.time.sleep"):
+            link_with_retry(src, dest, retries=3)
+
+        assert call_count == 3
+
+    def test_raises_after_max_retries(self, tmp_path: Path):
+        src = tmp_path / "source.txt"
+        src.write_text("hello")
+        dest = tmp_path / "dest.txt"
+
+        with (
+            patch("pixel_backup.sync.os.link", side_effect=OSError("Permanent error")),
+            patch("pixel_backup.sync.time.sleep"),
+        ):
+            try:
+                link_with_retry(src, dest, retries=3)
+                assert False, "Should have raised OSError"
+            except OSError:
+                pass
+
+
 class TestSyncAllUsers:
     def setup_method(self):
         self.user_config_mock_path = "pixel_backup.sync.UserConfig.load"
 
     def test_sync_skips_when_above_lower_limit(self, tmp_path: Path):
+        library_dir = tmp_path / "library"
+        library_dir.mkdir()
         syncthing_dir = tmp_path / "syncthing"
         syncthing_dir.mkdir()
 
@@ -140,6 +238,7 @@ class TestSyncAllUsers:
         large_file.write_bytes(b"X" * 6)
 
         settings = Settings(
+            library_dir=library_dir,
             syncthing_dir=syncthing_dir,
             upper_limit_gb=10 / GIGABYTE,
             lower_limit_gb=5 / GIGABYTE,
