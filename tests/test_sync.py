@@ -7,7 +7,7 @@ import pytest
 
 from pixel_backup.schemas import Settings, User, UserConfig
 from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_source
-from pixel_backup.utils import GIGABYTE, consistent_uuid, generate_destination_path
+from pixel_backup.utils import GIGABYTE, consistent_dir, generate_destination_path
 
 
 class TestSyncPerUser:
@@ -31,7 +31,7 @@ class TestSyncPerUser:
 
         # Verify files were linked
         assert added_bytes == 16
-        assert added_files[0].parent.name == added_files[1].parent.name == consistent_uuid(self.user_dir)
+        assert added_files[0].parent.name == added_files[1].parent.name == consistent_dir(self.user_dir)
         # Verify they are hard links (same inode on Linux/Windows compatible check)
         assert os.path.samefile(file1, added_files[0])
         assert os.path.samefile(file2, added_files[1])
