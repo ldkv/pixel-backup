@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from pixel_backup.utils import GIGABYTE, get_folder_size_gb, seconds_until_next_cron
+from pixel_backup.utils import (
+    GIGABYTE,
+    consistent_uuid,
+    generate_destination_path,
+    get_folder_size_gb,
+    seconds_until_next_cron,
+)
 
 
 class TestSecondsUntilNextCron:
@@ -151,3 +157,36 @@ class TestGetFolderSizeGb:
 
         result = get_folder_size_gb(tmp_path)
         assert result == 0.0
+
+
+def test_consistent_uuid():
+    path1 = Path("/path/to/file.jpg")
+    path2 = Path("/path/to/file.jpg")
+    path3 = Path("/path/to/other.jpg")
+
+    uuid1 = consistent_uuid(path1)
+    uuid2 = consistent_uuid(path2)
+    uuid3 = consistent_uuid(path3)
+
+    assert uuid1 == uuid2
+    assert uuid1 != uuid3
+
+
+def test_generate_destination_path():
+    dest_dir = Path("/backup")
+    asset_1 = Path("/library/user/photo.jpg")
+
+    dest_1 = generate_destination_path(dest_dir, asset_1)
+    expected_dir = consistent_uuid(asset_1.parent)
+    expected_path = Path(dest_dir, expected_dir, asset_1.name)
+
+    assert dest_1 == expected_path
+
+
+def test_generate_destination_path_consistency():
+    dest_dir = Path("/backup")
+    asset_1 = Path("/library/user/photo.jpg")
+    asset_2 = Path("/library/user/photo.jpg")
+    dest_1 = generate_destination_path(dest_dir, asset_1)
+    dest_2 = generate_destination_path(dest_dir, asset_2)
+    assert dest_2.parent == dest_1.parent

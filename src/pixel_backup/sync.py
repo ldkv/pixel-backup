@@ -4,8 +4,8 @@ import time
 from pathlib import Path
 
 from pixel_backup.local_disk import fetch_local_assets
-from pixel_backup.schemas import Settings, User, UserConfig
-from pixel_backup.utils import GIGABYTE, get_folder_size_gb
+from pixel_backup.schemas import Settings, UserConfig
+from pixel_backup.utils import GIGABYTE, generate_destination_path, get_folder_size_gb, validate_source_dir
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +32,27 @@ def sync_all_users(configs: Settings, dry_run: bool = False):
 
         user_quota_bytes = remaining_bytes / (len(users.users) - index)
         logger.info(f"Syncing user {user.username} with quota of {user_quota_bytes / GIGABYTE:.2f}GB...")
-        added_bytes, added_files, last_timestamp_ns = sync_per_user(configs, user, user_quota_bytes, dry_run=dry_run)
+        try:
+            added_bytes, added_files, last_timestamp_ns = sync_per_source(
+                configs.syncthing_dir,
+                user.username,
+                user.source_dir,
+                user.last_timestamp_ns,
+                user_quota_bytes,
+                dry_run,
+            )
+        except Exception:
+            logger.exception(f"Failed to sync for user {user.username}. Skipping.")
+            continue
+
         if not added_bytes:
             logger.info(f"No new assets for user {user.username}.")
             continue
 
         action = "Would add" if dry_run else "Added"
-        logger.info(f"{action} {added_files} files ({added_bytes / GIGABYTE:.2f}GB) for user {user.username}.")
+        logger.info(f"{action} {len(added_files)} files ({added_bytes / GIGABYTE:.2f}GB) for user {user.username}.")
         remaining_bytes -= added_bytes
-        total_files += added_files
+        total_files += len(added_files)
         total_bytes += added_bytes
 
         if not dry_run:
@@ -51,24 +63,27 @@ def sync_all_users(configs: Settings, dry_run: bool = False):
     logger.info(f"Sync complete: {total_files} files, {total_bytes / GIGABYTE:.2f}GB in {elapsed:.1f}s.")
 
 
-def sync_per_user(
-    configs: Settings,
-    user: User,
+def sync_per_source(
+    dest_dir: Path,
+    username: str,
+    source_dir: Path,
+    last_timestamp_ns: int,
     user_quota_bytes: float,
     dry_run: bool = False,
-) -> tuple[int, int, int]:
-    last_timestamp_ns = user.last_timestamp_ns
-    assets = fetch_local_assets(configs.library_dir, user.username, last_timestamp_ns)
+) -> tuple[int, list[Path], int]:
+    validate_source_dir(source_dir, dest_dir)
+    assets = fetch_local_assets(source_dir, last_timestamp_ns)
     if not assets:
-        return 0, 0, last_timestamp_ns
+        return 0, [], last_timestamp_ns
 
     added_bytes = 0
-    added_files = 0
+    added_files = []
     action = "Previewing" if dry_run else "Generating"
-    logger.info(f"Found {len(assets)} new assets for user {user.username}. {action} links...")
+    logger.info(f"Found {len(assets)} new assets for user {username}. {action} links...")
     created_dirs = set()
+    dest_user_dir = Path(dest_dir, username)
     for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
-        dest = Path(configs.syncthing_dir) / asset_path.relative_to(configs.library_dir)
+        dest = generate_destination_path(dest_user_dir, asset_path)
         if dest.exists():
             logger.warning(f"Skipping {asset_path=}. Destination already exists: {dest}")
             continue
@@ -82,7 +97,7 @@ def sync_per_user(
             link_with_retry(asset_path, dest)
 
         added_bytes += asset_size
-        added_files += 1
+        added_files.append(dest)
         if added_bytes >= user_quota_bytes:
             break
 

@@ -144,7 +144,6 @@ Controls sync behavior, paths, quotas, and scheduling.
 
 ```json
 {
-  "library_dir": "/immich/docker_data/library",
   "syncthing_dir": "/immich/syncthing",
   "upper_limit_gb": 20.0,
   "lower_limit_gb": 5.0,
@@ -156,7 +155,6 @@ Controls sync behavior, paths, quotas, and scheduling.
 
 | Field               | Description                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------- |
-| `library_dir`       | Path to your library. Must be on same filesystem as `syncthing_dir` for hard links.   |
 | `syncthing_dir`     | Directory where hard links are created for Syncthing to sync.                         |
 | `upper_limit_gb`    | Maximum Syncthing folder size in GB. Tool stops adding files when reached.            |
 | `lower_limit_gb`    | Threshold in GB. If folder exceeds this size, skip run to allow Syncthing to sync.    |

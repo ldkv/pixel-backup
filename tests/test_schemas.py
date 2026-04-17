@@ -3,19 +3,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
-from pixel_backup.schemas import Settings, User, UserConfig
+from pixel_backup.schemas import User, UserConfig
 
 
 def test_load_from_existing_file(tmp_path: Path):
     users_file = tmp_path / "users.json"
     test_data = {
         "users": [
-            {"username": "testuser", "asset_created_after": "2024-01-01"},
-            {"username": "testuser2", "asset_created_after": "2024-01-01T00:00:00"},
-            {"username": "testuser3", "asset_created_after": "2024-01-01T00:00:00Z"},
-            {"username": "testuser4", "asset_created_after": "2024-01-01T00:00:00+00:00"},
+            {"username": "testuser", "source_dir": "testuser", "asset_created_after": "2024-01-01"},
+            {"username": "testuser2", "source_dir": "testuser2", "asset_created_after": "2024-01-01T00:00:00"},
+            {"username": "testuser3", "source_dir": "testuser3", "asset_created_after": "2024-01-01T00:00:00Z"},
+            {"username": "testuser4", "source_dir": "testuser4", "asset_created_after": "2024-01-01T00:00:00+00:00"},
         ]
     }
     users_file.write_text(json.dumps(test_data))
@@ -37,7 +36,13 @@ def test_load_from_nonexistent_file(tmp_path: Path):
 def test_save_to_file(tmp_path: Path):
     users_file = tmp_path / "users.json"
     user_sync = UserConfig(
-        users=[User(username="alice", asset_created_after=datetime(2023, 6, 15, 10, 30, tzinfo=UTC))]
+        users=[
+            User(
+                username="alice",
+                source_dir=Path("alice"),
+                asset_created_after=datetime(2023, 6, 15, 10, 30, tzinfo=UTC),
+            )
+        ]
     )
 
     user_sync.save(users_file)
@@ -51,8 +56,12 @@ def test_save_and_load_roundtrip(tmp_path: Path):
     users_file = tmp_path / "users.json"
     original = UserConfig(
         users=[
-            User(username="bob", asset_created_after=datetime(2025, 3, 20, 14, 45, 30, tzinfo=UTC)),
-            User(username="charlie", asset_created_after=datetime(2022, 12, 1, tzinfo=UTC)),
+            User(
+                username="bob",
+                source_dir=Path("bob"),
+                asset_created_after=datetime(2025, 3, 20, 14, 45, 30, tzinfo=UTC),
+            ),
+            User(username="charlie", source_dir=Path("charlie"), asset_created_after=datetime(2022, 12, 1, tzinfo=UTC)),
         ]
     )
 
@@ -77,24 +86,8 @@ def test_empty_users_list(tmp_path: Path):
 
 
 def test_user_defaults():
-    user = User(username="defaultuser")
+    user = User(username="defaultuser", source_dir=Path("defaultuser"))
     assert user.username == "defaultuser"
+    assert user.source_dir == Path("defaultuser")
     assert user.asset_created_after == datetime(1970, 1, 1, tzinfo=UTC)
     assert user.last_timestamp_ns == 0
-
-
-def test_valid_config(tmp_path: Path):
-    library_dir = tmp_path / "library"
-    syncthing_dir = tmp_path / "syncthing"
-    library_dir.mkdir()
-
-    # model_validator runs on construction — no error means validation passed
-    Settings(library_dir=library_dir, syncthing_dir=syncthing_dir)
-
-    # syncthing_dir should be auto-created
-    assert syncthing_dir.is_dir()
-
-
-def test_missing_library_dir(tmp_path: Path):
-    with pytest.raises(ValidationError, match="Library directory does not exist"):
-        Settings(library_dir=tmp_path / "nonexistent", syncthing_dir=tmp_path / "syncthing")
