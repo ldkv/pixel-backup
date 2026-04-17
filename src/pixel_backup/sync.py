@@ -9,7 +9,7 @@ from pixel_backup.utils import GIGABYTE, get_folder_size_gb
 logger = logging.getLogger(__name__)
 
 
-def sync_all_users(configs: Settings) -> None:
+def sync_all_users(configs: Settings, dry_run: bool = False):
     current_gb = get_folder_size_gb(configs.syncthing_dir)
     if current_gb >= configs.lower_limit_gb:
         logger.info(f"Skipped. Sync folder is still full: {current_gb:.2f}GB. Waiting for space.")

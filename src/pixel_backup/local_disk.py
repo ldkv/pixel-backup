@@ -19,7 +19,7 @@ IGNORED_EXTENSIONS = {
 
 
 def fetch_local_assets(library_dir: Path, user: str, last_timestamp_ns: int) -> list[tuple[Path, int, int]]:
-    user_path = library_dir / user
+    user_path = Path(library_dir, user)
     if not user_path.is_dir():
         logger.error(f"{user_path=} does not exist or is not a directory.")
         return []
@@ -36,7 +36,7 @@ def fetch_local_assets(library_dir: Path, user: str, last_timestamp_ns: int) -> 
                     continue
 
                 info = entry.stat()
-                if info.st_mtime_ns >= last_timestamp_ns and is_media_file(entry.name):
+                if is_media_file(entry.name) and info.st_mtime_ns >= last_timestamp_ns:
                     found_assets.append((Path(entry.path), info.st_size, info.st_mtime_ns))
 
     return found_assets
