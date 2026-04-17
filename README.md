@@ -284,3 +284,7 @@ Available tasks (run `task --list` for complete list):
 ## License
 
 MIT
+
+## TODO
+
+- Optimize file scanning with concurrent processing
