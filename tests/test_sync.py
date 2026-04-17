@@ -91,11 +91,13 @@ class TestSyncPerUser:
         file2 = user_dir / "photo2.jpg"
         file3 = user_dir / "photo3.jpg"
         file1.write_text("A" * 1000)  # 1000 bytes
-        os.utime(file1, (datetime(2020, 1, 1).timestamp(), datetime(2020, 1, 1).timestamp()))
+        os.utime(
+            file1, (datetime(2019, 12, 31, tzinfo=UTC).timestamp(), datetime(2019, 12, 31, tzinfo=UTC).timestamp())
+        )
         file2.write_text("B" * 1000)  # 1000 bytes
-        os.utime(file2, (datetime(2020, 1, 2).timestamp(), datetime(2020, 1, 2).timestamp()))
+        os.utime(file2, (datetime(2020, 1, 2, tzinfo=UTC).timestamp(), datetime(2020, 1, 2, tzinfo=UTC).timestamp()))
         file3.write_text("C" * 1000)  # 1000 bytes
-        os.utime(file3, (datetime(2020, 1, 3).timestamp(), datetime(2020, 1, 3).timestamp()))
+        os.utime(file3, (datetime(2020, 1, 3, tzinfo=UTC).timestamp(), datetime(2020, 1, 3, tzinfo=UTC).timestamp()))
 
         configs = Settings(library_dir=library_dir, syncthing_dir=syncthing_dir)
         user = User(username="testuser", asset_created_after=datetime(2020, 1, 1, tzinfo=UTC))
@@ -108,7 +110,7 @@ class TestSyncPerUser:
         assert added_files == 2
         synced_files = sorted(f.name for f in (syncthing_dir / "testuser").glob("*.jpg"))
         assert synced_files == ["photo2.jpg", "photo3.jpg"]
-        assert last_created_at == datetime(2020, 1, 3).timestamp() * 1_000_000_000
+        assert last_created_at == datetime(2020, 1, 3, tzinfo=UTC).timestamp() * 1_000_000_000
 
     def test_sync_creates_nested_directories(self, tmp_path: Path):
         library_dir = tmp_path / "library"
