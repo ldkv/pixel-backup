@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import ClassVar, Self
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class ConfigBase(BaseModel):
             raise FileNotFoundError(f"Config file not found at {target_path=}.")
 
         logger.warning(f"Config file not found at {target_path=}. Generate default config.")
-        configs = cls()
+        configs = cls.model_construct()
         configs.save()
         return configs
 
@@ -55,6 +55,21 @@ class Settings(ConfigBase):
             return ZoneInfo(timezone)
         except Exception:
             raise ValueError(f"Invalid timezone: {timezone}")
+
+    @model_validator(mode="after")
+    def validate_directories(self) -> Self:
+        """Validate filesystem constraints: directory existence, permissions, hard link support."""
+        if not self.library_dir.is_dir():
+            raise ValueError(f"Library directory does not exist: {self.library_dir}")
+
+        self.syncthing_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.library_dir.stat().st_dev != self.syncthing_dir.stat().st_dev:
+            raise ValueError(
+                f"Library ({self.library_dir}) and Syncthing ({self.syncthing_dir}) "
+                f"are on different filesystems. Hard links require the same filesystem."
+            )
+        return self
 
 
 class User(BaseModel):

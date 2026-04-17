@@ -3,8 +3,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from pixel_backup.schemas import User, UserConfig
+from pixel_backup.schemas import Settings, User, UserConfig
 
 
 def test_load_from_existing_file(tmp_path: Path):
@@ -80,3 +81,20 @@ def test_user_defaults():
     assert user.username == "defaultuser"
     assert user.asset_created_after == datetime(1970, 1, 1, tzinfo=UTC)
     assert user.last_timestamp_ns == 0
+
+
+def test_valid_config(tmp_path: Path):
+    library_dir = tmp_path / "library"
+    syncthing_dir = tmp_path / "syncthing"
+    library_dir.mkdir()
+
+    # model_validator runs on construction — no error means validation passed
+    Settings(library_dir=library_dir, syncthing_dir=syncthing_dir)
+
+    # syncthing_dir should be auto-created
+    assert syncthing_dir.is_dir()
+
+
+def test_missing_library_dir(tmp_path: Path):
+    with pytest.raises(ValidationError, match="Library directory does not exist"):
+        Settings(library_dir=tmp_path / "nonexistent", syncthing_dir=tmp_path / "syncthing")
