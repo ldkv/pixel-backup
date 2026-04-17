@@ -18,15 +18,14 @@ IGNORED_EXTENSIONS = {
 }
 
 
-def fetch_local_assets(library_dir: Path, user: str, last_timestamp_ns: int) -> list[tuple[Path, int, int]]:
-    user_path = Path(library_dir, user)
-    if not user_path.is_dir():
-        logger.error(f"{user_path=} does not exist or is not a directory.")
+def fetch_local_assets(source_dir: Path, last_timestamp_ns: int) -> list[tuple[Path, int, int]]:
+    if not source_dir.is_dir():
+        logger.error(f"{source_dir=} does not exist or is not a directory.")
         return []
 
-    logger.info(f"Fetching assets for {user=} created after {last_timestamp_ns}...")
+    logger.info(f"Fetching assets for {source_dir=} created after {last_timestamp_ns}...")
     found_assets = []
-    stack = [user_path.as_posix()]
+    stack = [source_dir.as_posix()]
     while stack:
         current_dir = stack.pop()
         with os.scandir(current_dir) as it:

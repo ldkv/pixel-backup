@@ -41,7 +41,6 @@ class ConfigBase(BaseModel):
 class Settings(ConfigBase):
     path: ClassVar[Path] = _CONFIGS_PATH / "settings.json"
 
-    library_dir: Path = Path("/immich/docker_data/library")
     syncthing_dir: Path = Path("/immich/syncthing")
     upper_limit_gb: float = 20.0
     lower_limit_gb: float = 5.0
@@ -58,22 +57,13 @@ class Settings(ConfigBase):
 
     @model_validator(mode="after")
     def validate_directories(self) -> Self:
-        """Validate filesystem constraints: directory existence, permissions, hard link support."""
-        if not self.library_dir.is_dir():
-            raise ValueError(f"Library directory does not exist: {self.library_dir}")
-
         self.syncthing_dir.mkdir(parents=True, exist_ok=True)
-
-        if self.library_dir.stat().st_dev != self.syncthing_dir.stat().st_dev:
-            raise ValueError(
-                f"Library ({self.library_dir}) and Syncthing ({self.syncthing_dir}) "
-                f"are on different filesystems. Hard links require the same filesystem."
-            )
         return self
 
 
 class User(BaseModel):
     username: str
+    source_dir: Path
     asset_created_after: datetime = datetime(1970, 1, 1, tzinfo=UTC)
     last_timestamp_ns: int = 0
 

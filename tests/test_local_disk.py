@@ -52,8 +52,7 @@ class TestIsMediaFile:
 
 class TestFetchLocalAssets:
     def test_fetch_from_valid_user_directory(self, tmp_path: Path):
-        library_dir = tmp_path / "library"
-        user_dir = library_dir / "testuser"
+        user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 
         # Create some media files with different timestamps
@@ -67,7 +66,7 @@ class TestFetchLocalAssets:
         file2.touch()
 
         # Fetch all assets (created_after = 0)
-        assets = fetch_local_assets(library_dir, "testuser", 0)
+        assets = fetch_local_assets(user_dir, 0)
 
         assert len(assets) == 2
         assert all(isinstance(asset, tuple) and len(asset) == 3 for asset in assets)
@@ -77,8 +76,7 @@ class TestFetchLocalAssets:
         assert file2 in paths
 
     def test_fetch_with_timestamp_filter(self, tmp_path: Path):
-        library_dir = tmp_path / "library"
-        user_dir = library_dir / "testuser"
+        user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 
         # Create an old file
@@ -94,34 +92,23 @@ class TestFetchLocalAssets:
 
         # Fetch only recent assets
         cutoff_time = int((time.time() - 5000) * 1_000_000_000)  # Convert to nanoseconds
-        assets = fetch_local_assets(library_dir, "testuser", cutoff_time)
+        assets = fetch_local_assets(user_dir, cutoff_time)
 
         # Should only get the new file
         assert len(assets) == 1
         assert assets[0][0] == new_file
 
-    def test_nonexistent_user_directory(self, tmp_path: Path):
-        library_dir = tmp_path / "library"
-        library_dir.mkdir()
-
-        assets = fetch_local_assets(library_dir, "nonexistent_user", 0)
-        assert assets == []
-
     def test_user_path_is_file_not_directory(self, tmp_path: Path):
-        library_dir = tmp_path / "library"
-        library_dir.mkdir()
-
         # Create a file instead of directory
-        user_file = library_dir / "testuser"
+        user_file = tmp_path / "testuser"
         user_file.write_text("not a directory")
 
-        assets = fetch_local_assets(library_dir, "testuser", 0)
+        assets = fetch_local_assets(user_file, 0)
 
         assert assets == []
 
     def test_nested_directory_structure(self, tmp_path: Path):
-        library_dir = tmp_path / "library"
-        user_dir = library_dir / "testuser"
+        user_dir = tmp_path / "testuser"
         nested_dir = user_dir / "2024" / "01" / "photos"
         nested_dir.mkdir(parents=True)
 
@@ -134,7 +121,7 @@ class TestFetchLocalAssets:
         mid_file.write_text("mid")
         deep_file.write_text("deep")
 
-        assets = fetch_local_assets(library_dir, "testuser", 0)
+        assets = fetch_local_assets(user_dir, 0)
 
         assert len(assets) == 3
         paths = [asset[0] for asset in assets]
@@ -143,8 +130,7 @@ class TestFetchLocalAssets:
         assert deep_file in paths
 
     def test_ignored_files_not_included(self, tmp_path: Path):
-        library_dir = tmp_path / "library"
-        user_dir = library_dir / "testuser"
+        user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 
         # Create media files
@@ -161,7 +147,7 @@ class TestFetchLocalAssets:
         ignored2.write_text("{}")
         ignored3.write_text("data")
 
-        assets = fetch_local_assets(library_dir, "testuser", 0)
+        assets = fetch_local_assets(user_dir, 0)
 
         # Should only get media files
         assert len(assets) == 2
@@ -173,8 +159,7 @@ class TestFetchLocalAssets:
         assert ignored3 not in paths
 
     def test_return_tuple_structure(self, tmp_path: Path):
-        library_dir = tmp_path / "library"
-        user_dir = library_dir / "testuser"
+        user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 
         file_path = user_dir / "test.jpg"
@@ -183,7 +168,7 @@ class TestFetchLocalAssets:
         current_time = time.time()
         os.utime(file_path, (current_time, current_time))
 
-        assets = fetch_local_assets(library_dir, "testuser", 0)
+        assets = fetch_local_assets(user_dir, 0)
 
         assert len(assets) == 1
         path, size, timestamp = assets[0]
