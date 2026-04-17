@@ -1,4 +1,4 @@
-import uuid
+import hashlib
 from datetime import datetime
 from pathlib import Path
 
@@ -29,11 +29,11 @@ def get_folder_size_gb(path: Path) -> float:
     return total_bytes / GIGABYTE
 
 
-def consistent_uuid(path: Path) -> str:
-    path_str = path.resolve().as_posix()
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, path_str))
+def consistent_dir(path: Path) -> str:
+    path_hash = hashlib.md5(path.resolve().as_posix().encode()).hexdigest()
+    return f"{path.name[:15]}_{path_hash}"
 
 
 def generate_destination_path(dest_dir: Path, asset_path: Path) -> Path:
-    consistent_dir = consistent_uuid(asset_path.parent)
-    return Path(dest_dir, consistent_dir, asset_path.name)
+    consistent_asset_dir = consistent_dir(asset_path.parent)
+    return Path(dest_dir, consistent_asset_dir, asset_path.name)

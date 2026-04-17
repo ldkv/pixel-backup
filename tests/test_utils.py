@@ -5,7 +5,7 @@ import pytest
 
 from pixel_backup.utils import (
     GIGABYTE,
-    consistent_uuid,
+    consistent_dir,
     generate_destination_path,
     get_folder_size_gb,
     seconds_until_next_cron,
@@ -159,17 +159,28 @@ class TestGetFolderSizeGb:
         assert result == 0.0
 
 
-def test_consistent_uuid():
-    path1 = Path("/path/to/file.jpg")
-    path2 = Path("/path/to/file.jpg")
-    path3 = Path("/path/to/other.jpg")
+def test_consistent_dir():
+    path1 = Path("/path/to/a/")
+    path2 = Path("/path/to/a")
+    path3 = Path("/path/to/other/")
 
-    uuid1 = consistent_uuid(path1)
-    uuid2 = consistent_uuid(path2)
-    uuid3 = consistent_uuid(path3)
+    consistent_dir_1 = consistent_dir(path1)
+    consistent_dir_2 = consistent_dir(path2)
+    consistent_dir_3 = consistent_dir(path3)
 
-    assert uuid1 == uuid2
-    assert uuid1 != uuid3
+    assert consistent_dir_1 == consistent_dir_2 == "a_2fe2c247195f0330eb9939f4b784ed9e"
+    assert consistent_dir_1 != consistent_dir_3
+
+
+def test_consistent_dir_max_length():
+    path1 = Path("/path/to/a/")
+    path2 = Path(f"/path/to/{'a' * 100}/")
+
+    consistent_dir_1 = consistent_dir(path1)
+    consistent_dir_2 = consistent_dir(path2)
+
+    assert len(consistent_dir_1) == 34
+    assert len(consistent_dir_2) == 48
 
 
 def test_generate_destination_path():
@@ -177,7 +188,7 @@ def test_generate_destination_path():
     asset_1 = Path("/library/user/photo.jpg")
 
     dest_1 = generate_destination_path(dest_dir, asset_1)
-    expected_dir = consistent_uuid(asset_1.parent)
+    expected_dir = consistent_dir(asset_1.parent)
     expected_path = Path(dest_dir, expected_dir, asset_1.name)
 
     assert dest_1 == expected_path
