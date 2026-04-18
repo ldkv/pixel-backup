@@ -9,11 +9,11 @@ services:
       - /etc/localtime:/etc/localtime:ro
 
   syncthing:
-    image: syncthing/syncthing:latest
+    image: syncthing/syncthing:2.0.16
     container_name: syncthing
     restart: unless-stopped
     volumes:
-      - /immich/syncthing:/immich/syncthing
+      - ./test_data/syncthing:/syncthing
       - syncthing_config:/config
       - /etc/localtime:/etc/localtime:ro
     ports:

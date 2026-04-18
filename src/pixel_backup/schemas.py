@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar, Self
@@ -8,7 +9,7 @@ from pydantic import BaseModel, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
-_CONFIGS_PATH = Path("./configs/")  # /app/configs in docker
+CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "./configs"))
 
 
 class ConfigBase(BaseModel):
@@ -39,7 +40,7 @@ class ConfigBase(BaseModel):
 
 
 class Settings(ConfigBase):
-    path: ClassVar[Path] = _CONFIGS_PATH / "settings.json"
+    path: ClassVar[Path] = CONFIG_DIR / "settings.json"
 
     syncthing_dir: Path = Path("/immich/syncthing")
     upper_limit_gb: float = 20.0
@@ -84,6 +85,6 @@ class User(BaseModel):
 
 
 class UserConfig(ConfigBase):
-    path: ClassVar[Path] = _CONFIGS_PATH / "users.json"
+    path: ClassVar[Path] = CONFIG_DIR / "users.json"
 
     users: list[User] = []

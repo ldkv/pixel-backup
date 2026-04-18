@@ -79,3 +79,9 @@ tasks:
     desc: Start the application with docker compose
     deps: [down]
     cmd: docker compose up -d --build
+
+  push:
+    desc: Push the application to docker registry
+    cmds:
+      - docker build -t git.ledkvu.com/ldkv/pixel-backup:latest .
+      - docker push git.ledkvu.com/ldkv/pixel-backup:latest
