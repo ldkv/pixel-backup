@@ -146,7 +146,6 @@ Controls sync behavior, paths, quotas, and scheduling.
 {
   "syncthing_dir": "/immich/syncthing",
   "upper_limit_gb": 20.0,
-  "lower_limit_gb": 5.0,
   "cron_schedule": "0 0 * * *",
   "timezone": "UTC",
   "min_sleep_seconds": 60
@@ -157,7 +156,6 @@ Controls sync behavior, paths, quotas, and scheduling.
 | ------------------- | ------------------------------------------------------------------------------------- |
 | `syncthing_dir`     | Directory where hard links are created for Syncthing to sync.                         |
 | `upper_limit_gb`    | Maximum Syncthing folder size in GB. Tool stops adding files when reached.            |
-| `lower_limit_gb`    | Threshold in GB. If folder exceeds this size, skip run to allow Syncthing to sync.    |
 | `cron_schedule`     | Standard cron syntax for scheduling runs. Default `0 0 * * *` runs daily at midnight. |
 | `timezone`          | IANA timezone name for interpreting cron schedule (e.g., `America/New_York`).         |
 | `min_sleep_seconds` | Minimum seconds between runs, regardless of cron interval. Prevents excessive runs.   |

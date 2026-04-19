@@ -4,10 +4,9 @@ from pathlib import Path
 import pytest
 
 from pixel_backup.utils import (
-    GIGABYTE,
     consistent_dir,
     generate_destination_path,
-    get_folder_size_gb,
+    get_folder_size_bytes,
     seconds_until_next_cron,
 )
 
@@ -81,18 +80,19 @@ class TestSecondsUntilNextCron:
         assert result == 59400.0
 
 
-class TestGetFolderSizeGb:
+class TestGetFolderSize:
     def test_empty_folder(self, tmp_path: Path):
-        result = get_folder_size_gb(tmp_path)
-        assert result == 0.0
+        result = get_folder_size_bytes(tmp_path)
+        assert result == 0
+        assert isinstance(result, int)
 
     def test_single_file(self, tmp_path: Path):
         test_file = tmp_path / "test.txt"
         content = "A" * 1024  # 1 KB
         test_file.write_text(content)
 
-        result = get_folder_size_gb(tmp_path)
-        expected = 1024 / GIGABYTE
+        result = get_folder_size_bytes(tmp_path)
+        expected = 1024
         assert result == expected
 
     def test_multiple_files(self, tmp_path: Path):
@@ -101,14 +101,16 @@ class TestGetFolderSizeGb:
         file1.write_text("A" * 2048)  # 2 KB
         file2.write_text("B" * 3072)  # 3 KB
 
-        result = get_folder_size_gb(tmp_path)
-        expected = 5120 / GIGABYTE  # 5 KB total
+        result = get_folder_size_bytes(tmp_path)
+        expected = 5120  # 5 KB total
         assert result == expected
 
     def test_nested_directories(self, tmp_path: Path):
         subdir1 = tmp_path / "subdir1"
         subdir2 = subdir1 / "subdir2"
+        subdir3 = tmp_path / "empty2" / "nested"
         subdir2.mkdir(parents=True)
+        subdir3.mkdir(parents=True)
 
         file1 = tmp_path / "root.txt"
         file2 = subdir1 / "level1.txt"
@@ -118,8 +120,8 @@ class TestGetFolderSizeGb:
         file2.write_text("B" * 2048)
         file3.write_text("C" * 4096)
 
-        result = get_folder_size_gb(tmp_path)
-        expected = 7168 / GIGABYTE  # 7 KB total
+        result = get_folder_size_bytes(tmp_path)
+        expected = 7168  # 7 KB total
         assert result == expected
 
     def test_ignores_symlinks(self, tmp_path: Path):
@@ -132,31 +134,13 @@ class TestGetFolderSizeGb:
         try:
             symlink.symlink_to(real_file)
 
-            result = get_folder_size_gb(tmp_path)
+            result = get_folder_size_bytes(tmp_path)
             # Should only count the real file once, not the symlink
-            expected = 1024 / GIGABYTE
+            expected = 1024
             assert result == expected
         except OSError:
             # Skip test if symlinks aren't supported (Windows without admin)
             pytest.skip("Symlinks not supported on this system")
-
-    def test_large_file_size_calculation(self, tmp_path: Path):
-        large_file = tmp_path / "large.bin"
-        size_bytes = 1024 * 1024  # 1 MB
-        large_file.write_bytes(b"X" * size_bytes)
-
-        result = get_folder_size_gb(tmp_path)
-        expected = size_bytes / GIGABYTE
-        assert result == pytest.approx(expected, rel=1e-9)
-
-    def test_empty_subdirectories_dont_affect_size(self, tmp_path: Path):
-        subdir1 = tmp_path / "empty1"
-        subdir2 = tmp_path / "empty2" / "nested"
-        subdir1.mkdir()
-        subdir2.mkdir(parents=True)
-
-        result = get_folder_size_gb(tmp_path)
-        assert result == 0.0
 
 
 def test_consistent_dir():

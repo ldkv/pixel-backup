@@ -44,7 +44,6 @@ class Settings(ConfigBase):
 
     syncthing_dir: Path = Path("/immich/syncthing")
     upper_limit_gb: float = 20.0
-    lower_limit_gb: float = 5.0
     cron_schedule: str = "0 0 * * *"  # Default: every day at midnight
     timezone: ZoneInfo = ZoneInfo("UTC")
     min_sleep_seconds: int = 60

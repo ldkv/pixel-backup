@@ -1,7 +1,7 @@
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -97,11 +97,7 @@ class TestDryRun:
 
         with patch("pixel_backup.sync.UserConfig.load") as mock_load:
             mock_load.return_value = user_config
-            settings = Settings(
-                syncthing_dir=self.syncthing_dir,
-                upper_limit_gb=1.0 / GIGABYTE,
-                lower_limit_gb=0.0,
-            )
+            settings = Settings(syncthing_dir=self.syncthing_dir, upper_limit_gb=1.0 / GIGABYTE)
             sync_all_users(settings, dry_run=True)
 
         assert user_config.users[0].last_timestamp_ns == original_ts
@@ -158,25 +154,8 @@ class TestSyncAllUsers:
     def setup_method(self):
         self.user_config_mock_path = "pixel_backup.sync.UserConfig.load"
 
-    def test_sync_skips_when_above_lower_limit(self, tmp_path: Path):
-        syncthing_dir = tmp_path / "syncthing"
-        syncthing_dir.mkdir()
-
-        # Create a large file to exceed lower limit
-        large_file = syncthing_dir / "large.bin"
-        large_file.write_bytes(b"X" * 6)
-
-        settings = Settings(
-            syncthing_dir=syncthing_dir,
-            upper_limit_gb=10 / GIGABYTE,
-            lower_limit_gb=5 / GIGABYTE,
-        )
-
-        with patch(self.user_config_mock_path):
-            sync_all_users(settings)
-        assert len(list(syncthing_dir.rglob("*"))) == 1
-
-    def test_sync_stops_when_quota_exhausted(self, tmp_path: Path):
+    @patch("pixel_backup.sync.send_discord_notification")
+    def test_sync_stops_when_quota_exhausted(self, mock_notify: Mock, tmp_path: Path):
         user_dir = tmp_path / "library"
         syncthing_dir = tmp_path / "syncthing"
 
@@ -205,14 +184,44 @@ class TestSyncAllUsers:
             settings = Settings(
                 syncthing_dir=syncthing_dir,
                 upper_limit_gb=10 / GIGABYTE,  # Only enough for ~2 users
-                lower_limit_gb=0.0,
             )
 
             sync_all_users(settings)
 
             # Not all users should have files synced due to quota limits
             synced_users = len(list(syncthing_dir.glob("user*")))
-            assert synced_users < 5
+            assert synced_users == 2
+            assert mock_notify.call_count == 2
+            assert mock_notify.call_args_list[0].args[0].startswith("Reached upper limit of")
+            assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 2 files")
+
+    def test_dry_run_does_not_notify(self, tmp_path: Path):
+        syncthing_dir = tmp_path / "syncthing"
+        syncthing_dir.mkdir()
+        (syncthing_dir / "big.bin").write_bytes(b"X" * 100)
+
+        user_dir = tmp_path / "testuser"
+        user_dir.mkdir()
+        (user_dir / "photo.jpg").write_text("data")
+        user_config = UserConfig(
+            users=[
+                User(
+                    username="testuser",
+                    source_dir=user_dir,
+                    asset_created_after=datetime(2020, 1, 1, tzinfo=UTC),
+                )
+            ]
+        )
+
+        with (
+            patch(self.user_config_mock_path) as mock_load,
+            patch("pixel_backup.sync.send_discord_notification") as mock_notify,
+        ):
+            mock_load.return_value = user_config
+            settings = Settings(syncthing_dir=syncthing_dir, upper_limit_gb=1 / GIGABYTE)
+            sync_all_users(settings, dry_run=True)
+
+        mock_notify.assert_not_called()
 
     def test_sync_no_new_assets_for_any_user(self, tmp_path: Path):
         syncthing_dir = tmp_path / "syncthing"
@@ -233,11 +242,7 @@ class TestSyncAllUsers:
         with patch(self.user_config_mock_path) as mock_load:
             mock_load.return_value = user_config
 
-            settings = Settings(
-                syncthing_dir=syncthing_dir,
-                upper_limit_gb=1.0 / GIGABYTE,
-                lower_limit_gb=0.0,
-            )
+            settings = Settings(syncthing_dir=syncthing_dir, upper_limit_gb=1.0 / GIGABYTE)
 
             sync_all_users(settings)
 
