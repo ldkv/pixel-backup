@@ -2,8 +2,18 @@
     "users": [
         {
             "username": "<USERNAME>",
-            "source_dir": "/path/to/source/directory",
-            "asset_created_after": "1970-01-01T00:00:00"
+            "sources": [
+                {
+                    "source_dir": "/path/to/source/directory",
+                    "asset_created_after": "1970-01-01T00:00:00"
+                },
+                {
+                    "immich_url": "<IMMICH_URL>",
+                    "immich_username": "<IMMICH_USERNAME>",
+                    "immich_api_key": "<IMMICH_API_KEY>",
+                    "asset_created_after": "1970-01-01T00:00:00"
+                }
+            ]
         }
     ]
 }
