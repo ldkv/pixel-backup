@@ -4,8 +4,9 @@ import time
 from pathlib import Path
 
 from pixel_backup.local_disk import fetch_local_assets
+from pixel_backup.notify import send_discord_notification
 from pixel_backup.schemas import Settings, UserConfig
-from pixel_backup.utils import GIGABYTE, generate_destination_path, get_folder_size_gb, validate_source_dir
+from pixel_backup.utils import GIGABYTE, MEGABYTE, generate_destination_path, get_folder_size_bytes, validate_source_dir
 
 logger = logging.getLogger(__name__)
 
@@ -15,30 +16,27 @@ RETRY_DELAY_SECONDS = 0.5
 
 def sync_all_users(configs: Settings, dry_run: bool = False):
     start_time = time.monotonic()
-    current_gb = get_folder_size_gb(configs.syncthing_dir)
-    if current_gb >= configs.lower_limit_gb:
-        logger.info(f"Skipped. Sync folder is still full: {current_gb:.2f}GB. Waiting for space.")
-        return
-
-    remaining_bytes = (configs.upper_limit_gb - current_gb) * GIGABYTE
+    current_size_bytes = get_folder_size_bytes(configs.syncthing_dir)
+    remaining_bytes = int((configs.upper_limit_gb * GIGABYTE) - current_size_bytes)
     users = UserConfig.load(generate_default=False)
-
     total_files = 0
     total_bytes = 0
-    for index, user in enumerate(users.users):
+    for user in users.users:
         if remaining_bytes <= 0:
-            logger.info(f"Reached upper limit. Stopping sync for {user=}.")
-            continue
+            message = f"Reached upper limit of {configs.upper_limit_gb}GB. Please free up space on your Pixel."
+            logger.info(message)
+            if not dry_run:
+                send_discord_notification(message)
+            break
 
-        user_quota_bytes = remaining_bytes / (len(users.users) - index)
-        logger.info(f"Syncing user {user.username} with quota of {user_quota_bytes / GIGABYTE:.2f}GB...")
+        logger.info(f"Syncing user {user.username} with quota of {remaining_bytes / MEGABYTE:.2f}MB...")
         try:
             added_bytes, added_files, last_timestamp_ns = sync_per_source(
                 configs.syncthing_dir,
                 user.username,
                 user.source_dir,
                 user.last_timestamp_ns,
-                user_quota_bytes,
+                remaining_bytes,
                 dry_run,
             )
         except Exception:
@@ -50,7 +48,7 @@ def sync_all_users(configs: Settings, dry_run: bool = False):
             continue
 
         action = "Would add" if dry_run else "Added"
-        logger.info(f"{action} {len(added_files)} files ({added_bytes / GIGABYTE:.2f}GB) for user {user.username}.")
+        logger.info(f"{action} {len(added_files)} files ({added_bytes / MEGABYTE:.2f}MB) for user {user.username}.")
         remaining_bytes -= added_bytes
         total_files += len(added_files)
         total_bytes += added_bytes
@@ -60,7 +58,10 @@ def sync_all_users(configs: Settings, dry_run: bool = False):
             users.save()
 
     elapsed = time.monotonic() - start_time
-    logger.info(f"Sync complete: {total_files} files, {total_bytes / GIGABYTE:.2f}GB in {elapsed:.1f}s.")
+    message = f"Sync complete: {total_files} files, {total_bytes / MEGABYTE:.2f}MB in {elapsed:.1f}s."
+    logger.info(message)
+    if not dry_run:
+        send_discord_notification(message)
 
 
 def sync_per_source(
@@ -83,12 +84,14 @@ def sync_per_source(
     created_dirs = set()
     dest_user_dir = Path(dest_dir, username)
     for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
+        if added_bytes + asset_size > user_quota_bytes:
+            break
+
         dest = generate_destination_path(dest_user_dir, asset_path)
         if dest.exists():
             logger.warning(f"Skipping {asset_path=}. Destination already exists: {dest}")
             continue
 
-        last_timestamp_ns = asset_created_at_ns
         if not dry_run:
             if dest.parent not in created_dirs:
                 dest.parent.mkdir(parents=True, exist_ok=True)
@@ -96,10 +99,11 @@ def sync_per_source(
 
             link_with_retry(asset_path, dest)
 
+        action = "Would link" if dry_run else "Linked"
+        logger.info(f"{action} {asset_path} -> {dest}")
+        last_timestamp_ns = asset_created_at_ns
         added_bytes += asset_size
         added_files.append(dest)
-        if added_bytes >= user_quota_bytes:
-            break
 
     return added_bytes, added_files, last_timestamp_ns
 

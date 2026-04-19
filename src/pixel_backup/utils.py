@@ -4,7 +4,8 @@ from pathlib import Path
 
 from croniter import croniter
 
-GIGABYTE = 1024**3
+MEGABYTE = 1024**2
+GIGABYTE = MEGABYTE * 1024
 
 
 def seconds_until_next_cron(cron_schedule: str, current_time: datetime, min_sleep_seconds: int) -> float:
@@ -24,9 +25,9 @@ def validate_source_dir(source_dir: Path, dest_dir: Path):
         )
 
 
-def get_folder_size_gb(path: Path) -> float:
+def get_folder_size_bytes(path: Path) -> int:
     total_bytes = sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink())
-    return total_bytes / GIGABYTE
+    return total_bytes
 
 
 def consistent_dir(path: Path) -> str:
