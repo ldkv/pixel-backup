@@ -43,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     if args.dry_run:
         args.permanent = False
 
+    logger.info(f"Starting with args: {args}")
     return args
 
 
@@ -67,6 +68,7 @@ def main():
         logger.info("DRY RUN mode enabled. No files will be linked.")
 
     if not args.permanent:
+        logger.info("Executing single sync...")
         configs = Settings.load(generate_default=True)
         sync_all_users(configs, dry_run=args.dry_run)
         return
@@ -75,6 +77,7 @@ def main():
     signal.signal(signal.SIGINT, handle_signal)
 
     backoff_seconds = 0
+    logger.info("Executing continuous sync...")
     while not shutdown_event.is_set():
         try:
             sync_loop()

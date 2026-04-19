@@ -23,4 +23,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 ENTRYPOINT []
 
-CMD ["pixel-backup"]
+CMD ["pixel-backup", "--permanent"]
