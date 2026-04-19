@@ -4,7 +4,7 @@ import signal
 from datetime import datetime, timedelta
 from threading import Event
 
-from pixel_backup.schemas import Settings
+from pixel_backup.settings import ENV_VARS
 from pixel_backup.sync import sync_all_users
 from pixel_backup.utils import seconds_until_next_cron
 
@@ -48,29 +48,26 @@ def parse_args() -> argparse.Namespace:
 
 
 def sync_loop():
-    configs = Settings.load(generate_default=True)
-    now = datetime.now(configs.timezone)
-    sleep_secs = seconds_until_next_cron(configs.cron_schedule, now, configs.min_sleep_seconds)
+    now = datetime.now(ENV_VARS.timezone)
+    sleep_secs = seconds_until_next_cron(ENV_VARS.cron_schedule, now, ENV_VARS.min_sleep_seconds)
     next_sync_time = now + timedelta(seconds=sleep_secs)
 
     logger.info(f"Next sync at {next_sync_time}. Sleeping for {sleep_secs:.0f} seconds...")
     if shutdown_event.wait(timeout=sleep_secs):
         return
 
-    sync_all_users(configs)
+    sync_all_users(ENV_VARS)
 
 
 def main():
     configure_logging()
     args = parse_args()
-
     if args.dry_run:
         logger.info("DRY RUN mode enabled. No files will be linked.")
 
     if not args.permanent:
         logger.info("Executing single sync...")
-        configs = Settings.load(generate_default=True)
-        sync_all_users(configs, dry_run=args.dry_run)
+        sync_all_users(ENV_VARS, dry_run=args.dry_run)
         return
 
     signal.signal(signal.SIGTERM, handle_signal)

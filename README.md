@@ -16,9 +16,10 @@ This tool optimizes the workflow by syncing directly from your Immich library us
 ## Features
 
 - **Automated Syncing**: Cron-scheduled synchronization from library to Syncthing folder
-- **Per-User Tracking**: Multiple users with independent sync progress
+- **Per-User Tracking**: Multiple users with independent sync progress and source directories
 - **Library Agnostic**: Works with any local photo library organized by user folders, not just Immich
-- **Quota Management**: Configurable size limits prevent overwhelming backup device storage
+- **Quota Management**: Configurable size limit prevents overwhelming backup device storage
+- **Discord Notifications**: Optional webhook alerts on sync completion or when upper limit is reached
 - **Low Maintenance**: Requires only periodic cleanup on the backup device after initial setup
 
 ## How It Works
@@ -27,11 +28,11 @@ This tool optimizes the workflow by syncing directly from your Immich library us
 Local library  ──hard-link──▶  Syncthing folder  ──sync──▶  Backup Pixel  ──upload──▶  Google Photos
 ```
 
-1. Tool runs on configured cron schedule and checks Syncthing folder size
-2. If folder size exceeds lower limit, run is skipped (allows Syncthing to catch up)
-3. When space is available, new assets are hard-linked from the library, oldest first
-4. Progress is tracked with nanosecond precision and persisted across runs
-5. Syncthing syncs to Pixel → uploads to Google Photos → manual cleanup frees space for next batch
+1. Tool runs on configured cron schedule and measures free space under `upper_limit_gb`
+2. New assets are hard-linked from each user's `source_dir`, oldest first, until the upper limit is reached
+3. Progress is tracked per-user with nanosecond precision and persisted across runs
+4. Syncthing syncs to Pixel → uploads to Google Photos → manual cleanup frees space for next batch
+5. Optional Discord webhook notifies on sync completion or when the upper limit is hit
 
 > **Important:** Hard links require that the local library and Syncthing folder reside on the same filesystem. This approach uses no additional disk space.
 
@@ -61,17 +62,41 @@ cd pixel-backup
 cp -r configs_example configs
 ```
 
-**3. Edit configuration files** (`configs/settings.json` and `configs/users.json` — see Configuration section)
+**3. Edit configuration** (`configs/users.json` and `.env` — see Configuration section)
 
-**4. Update volume paths in `docker-compose.yml`**
+**4. Set `DATA_ROOT` and `SYNCTHING_DIR` in `.env`**
 
-Default configuration assumes library at `/immich`:
+`DATA_ROOT` is the single host directory that gets bind-mounted into the container at the exact same path. It **must be a common parent** of:
 
-```yaml
-volumes:
-  - /immich:/immich # adjust if your setup is special
-  - ./configs:/app/configs
+- every user's `source_dir` (the media libraries you want to back up), **and**
+- `SYNCTHING_DIR` (where hard links are staged for Syncthing).
+
+Both conditions are required because hard links only work when source and destination are on the same filesystem, and because the container sees these paths verbatim (no path translation).
+
+Example layout:
+
 ```
+/mnt/media/                        <- DATA_ROOT
+├── library/
+│   ├── alice/                     <- user source_dir
+│   └── bob/                       <- user source_dir
+└── syncthing/                     <- SYNCTHING_DIR
+```
+
+Matching `.env`:
+
+```bash
+DATA_ROOT=/mnt/media
+SYNCTHING_DIR=/mnt/media/syncthing
+```
+
+And `users.json`:
+
+```json
+{ "username": "alice", "source_dir": "/mnt/media/library/alice", ... }
+```
+
+Defaults (`DATA_ROOT=/immich`, `SYNCTHING_DIR=/immich/syncthing`) work if your library already lives under `/immich`.
 
 **5. Launch it**
 
@@ -136,31 +161,7 @@ uv run pixel-backup
 
 ## Configuration
 
-Configuration is managed through two JSON files in the `configs/` directory.
-
-### `configs/settings.json`
-
-Controls sync behavior, paths, quotas, and scheduling.
-
-```json
-{
-  "syncthing_dir": "/immich/syncthing",
-  "upper_limit_gb": 20.0,
-  "cron_schedule": "0 0 * * *",
-  "timezone": "UTC",
-  "min_sleep_seconds": 60
-}
-```
-
-| Field               | Description                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| `syncthing_dir`     | Directory where hard links are created for Syncthing to sync.                         |
-| `upper_limit_gb`    | Maximum Syncthing folder size in GB. Tool stops adding files when reached.            |
-| `cron_schedule`     | Standard cron syntax for scheduling runs. Default `0 0 * * *` runs daily at midnight. |
-| `timezone`          | IANA timezone name for interpreting cron schedule (e.g., `America/New_York`).         |
-| `min_sleep_seconds` | Minimum seconds between runs, regardless of cron interval. Prevents excessive runs.   |
-
-**Note:** If this file is missing, the tool will auto-generate it with the default values shown above.
+Sync behavior is configured via environment variables (see [Environment Variables](#environment-variables)). Per-user state is stored in a JSON file whose path is set by `USER_CONFIGS` (default `./configs/users.json`).
 
 #### Cron Schedule Examples
 
@@ -174,39 +175,58 @@ Controls sync behavior, paths, quotas, and scheduling.
 
 ---
 
-### `configs/users.json`
+### User Configurations: `users.json`
 
-Defines which Immich users to sync and tracks progress.
+Defines which users to sync and tracks progress.
 
 ```json
 {
   "users": [
     {
       "username": "<USERNAME>",
+      "source_dir": "/path/to/source/directory",
       "asset_created_after": "1970-01-01T00:00:00"
     }
   ]
 }
 ```
 
-| Field                 | Description                                                                                         |
-| --------------------- | --------------------------------------------------------------------------------------------------- |
-| `username`            | **Required.** Must match folder name in library directory.                                          |
-| `asset_created_after` | Only sync assets created after this timestamp (ISO 8601). Use `1970-01-01T00:00:00` for all assets. |
-| `last_timestamp_ns`   | **Auto-managed.** Nanosecond timestamp of last synced file. Modify only to force resync.            |
+| Field                 | Description                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `username`            | **Required.** Used as the per-user subfolder name under `syncthing_dir`.                                    |
+| `source_dir`          | **Required.** Absolute path to this user's library directory. Must share a filesystem with `syncthing_dir`. |
+| `asset_created_after` | Only sync assets created after this timestamp (ISO 8601). Use `1970-01-01T00:00:00` for all assets.         |
+| `last_timestamp_ns`   | **Auto-managed.** Nanosecond timestamp of last synced file. Modify only to force resync.                    |
 
-**Multiple Users:** The tool supports multiple users, with the available quota distributed equally among them:
+**Multiple Users:** Users are processed sequentially. Each user consumes the remaining quota under `upper_limit_gb` until exhausted; later users are skipped with a Discord alert (if configured).
 
 ```json
 {
   "users": [
-    { "username": "alice", "asset_created_after": "2024-01-01T00:00:00" },
-    { "username": "bob", "asset_created_after": "2024-06-01T00:00:00" }
+    { "username": "alice", "source_dir": "/immich/library/alice", "asset_created_after": "2024-01-01T00:00:00" },
+    { "username": "bob", "source_dir": "/immich/library/bob", "asset_created_after": "2024-06-01T00:00:00" }
   ]
 }
 ```
 
 > **Note:** This file is required. The tool will exit with an error if `users.json` is not found.
+
+---
+
+### Environment Variables
+
+All sync behavior (paths, quota, schedule, notifications) is configured via environment variables. Values can be exported in the shell, injected by Docker Compose, or placed in a `.env` file at the project root (copy `.env.example` to get started). All variables are optional and fall back to the defaults below.
+
+| Variable              | Default                | Description                                                                                                                                                                                               |
+| --------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `USER_CONFIGS`        | `./configs/users.json` | Path to the `users.json` config file. Ignored inside Docker (always `/app/configs/users.json`).                                                                                                           |
+| `DATA_ROOT`           | `/data`                | Host directory bind-mounted into the container at the same path. **Must be a common parent** of every user's `source_dir` and of `SYNCTHING_DIR` — hard links require one shared filesystem. Docker-only. |
+| `SYNCTHING_DIR`       | `/data/syncthing`      | Directory where hard links are created for Syncthing to sync. Must live under `DATA_ROOT`.                                                                                                                |
+| `UPPER_LIMIT_GB`      | `20.0`                 | Maximum Syncthing folder size in GB. Tool stops adding files when reached.                                                                                                                                |
+| `CRON_SCHEDULE`       | `0 0 * * *`            | Standard cron syntax for scheduling runs. Default runs daily at midnight.                                                                                                                                 |
+| `TIMEZONE`            | `UTC`                  | IANA timezone name for interpreting cron schedule (e.g., `America/New_York`).                                                                                                                             |
+| `MIN_SLEEP_SECONDS`   | `60`                   | Minimum seconds between runs, regardless of cron interval.                                                                                                                                                |
+| `DISCORD_WEBHOOK_URL` | _(empty)_              | Discord webhook URL for sync notifications. When unset, notifications are skipped.                                                                                                                        |
 
 ---
 
@@ -223,9 +243,19 @@ Logs look like this:
 
 ```
 [2026-02-24 00:00:00] INFO: Next sync at 2026-02-25 00:00:00. Sleeping for 1440 minutes...
-[2026-02-25 00:00:00] INFO: Syncing user alice...
-[2026-02-25 00:00:01] INFO: Synced 42 files (1.3 GB) for alice.
+[2026-02-25 00:00:00] INFO: Syncing user alice with quota of 18432.00MB...
+[2026-02-25 00:00:01] INFO: Added 42 files (1331.20MB) for user alice.
+[2026-02-25 00:00:01] INFO: Sync complete: 42 files, 1331.20MB in 1.2s.
 ```
+
+### Discord Notifications (optional)
+
+Set the `DISCORD_WEBHOOK_URL` environment variable to receive alerts when:
+
+- A sync run completes (summary of files and size)
+- The `upper_limit_gb` is reached before all users finish (prompt to free space on the Pixel)
+
+Notifications are skipped in dry-run mode and when the variable is unset.
 
 ### Forcing a Resync
 

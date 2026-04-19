@@ -1,15 +1,13 @@
 import logging
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar, Self
-from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator
+
+from pixel_backup.settings import ENV_VARS
 
 logger = logging.getLogger(__name__)
-
-CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "./configs"))
 
 
 class ConfigBase(BaseModel):
@@ -17,17 +15,17 @@ class ConfigBase(BaseModel):
 
     @classmethod
     def load(cls, path: Path | None = None, generate_default: bool = False) -> Self:
-        target_path = path or cls.path
-        if target_path.exists():
-            with target_path.open("r") as f:
+        cls.path = path or cls.path
+        if cls.path.exists():
+            with cls.path.open("r") as f:
                 data = f.read()
 
             return cls.model_validate_json(data)
 
         if not generate_default:
-            raise FileNotFoundError(f"Config file not found at {target_path=}.")
+            raise FileNotFoundError(f"Config file not found at {cls.path=}.")
 
-        logger.warning(f"Config file not found at {target_path=}. Generate default config.")
+        logger.warning(f"Config file not found at {cls.path=}. Generate default config.")
         configs = cls.model_construct()
         configs.save()
         return configs
@@ -37,28 +35,6 @@ class ConfigBase(BaseModel):
         target_path.parent.mkdir(parents=True, exist_ok=True)
         with target_path.open("w") as f:
             f.write(self.model_dump_json(indent=4))
-
-
-class Settings(ConfigBase):
-    path: ClassVar[Path] = CONFIG_DIR / "settings.json"
-
-    syncthing_dir: Path = Path("/immich/syncthing")
-    upper_limit_gb: float = 20.0
-    cron_schedule: str = "0 0 * * *"  # Default: every day at midnight
-    timezone: ZoneInfo = ZoneInfo("UTC")
-    min_sleep_seconds: int = 60
-
-    @field_validator("timezone", mode="before")
-    def validate_timezone(cls, timezone: str) -> ZoneInfo:
-        try:
-            return ZoneInfo(timezone)
-        except Exception:
-            raise ValueError(f"Invalid timezone: {timezone}")
-
-    @model_validator(mode="after")
-    def validate_directories(self) -> Self:
-        self.syncthing_dir.mkdir(parents=True, exist_ok=True)
-        return self
 
 
 class User(BaseModel):
@@ -84,6 +60,6 @@ class User(BaseModel):
 
 
 class UserConfig(ConfigBase):
-    path: ClassVar[Path] = CONFIG_DIR / "users.json"
+    path: ClassVar[Path] = ENV_VARS.user_configs
 
     users: list[User] = []

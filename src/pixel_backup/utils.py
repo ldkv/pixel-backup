@@ -10,8 +10,7 @@ GIGABYTE = MEGABYTE * 1024
 
 def seconds_until_next_cron(cron_schedule: str, current_time: datetime, min_sleep_seconds: int) -> float:
     sleep_secs = croniter(cron_schedule, current_time).get_next(float) - current_time.timestamp()
-    sleep_secs = max(sleep_secs, min_sleep_seconds)
-    return sleep_secs
+    return max(sleep_secs, min_sleep_seconds)
 
 
 def validate_source_dir(source_dir: Path, dest_dir: Path):
@@ -26,8 +25,7 @@ def validate_source_dir(source_dir: Path, dest_dir: Path):
 
 
 def get_folder_size_bytes(path: Path) -> int:
-    total_bytes = sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink())
-    return total_bytes
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink())
 
 
 def consistent_dir(path: Path) -> str:

@@ -5,7 +5,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from pixel_backup.schemas import Settings, User, UserConfig
+from pixel_backup.schemas import User, UserConfig
+from pixel_backup.settings import Settings
 from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_source
 from pixel_backup.utils import GIGABYTE, consistent_dir, generate_destination_path
 
@@ -142,12 +143,9 @@ class TestLinkWithRetry:
         with (
             patch("pixel_backup.sync.os.link", side_effect=OSError("Permanent error")),
             patch("pixel_backup.sync.time.sleep"),
+            pytest.raises(OSError),
         ):
-            try:
-                link_with_retry(src, dest, retries=3)
-                assert False, "Should have raised OSError"
-            except OSError:
-                pass
+            link_with_retry(src, dest, retries=3)
 
 
 class TestSyncAllUsers:

@@ -3,8 +3,13 @@ services:
     build: .
     container_name: pixel_backup
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - USER_CONFIGS=/app/configs/users.json
     volumes:
-      - /immich:/immich # Must be parent of syncthing volume
+      - ${DATA_ROOT:-/immich}:${DATA_ROOT:-/immich} # Must be parent of syncthing volume
       - ./configs:/app/configs
       - /etc/localtime:/etc/localtime:ro
 
@@ -13,7 +18,7 @@ services:
     container_name: syncthing
     restart: unless-stopped
     volumes:
-      - ./test_data/syncthing:/syncthing
+      - ${SYNCTHING_DIR:-/immich/syncthing}:/syncthing
       - syncthing_config:/config
       - /etc/localtime:/etc/localtime:ro
     ports:
