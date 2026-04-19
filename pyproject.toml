@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "Automatically backup local library to Google Pixel using Syncthing."
 authors = [{ name = "Vu LE", email = "ledkvu@gmail.com" }]
 requires-python = ">=3.14"
-dependencies = ["croniter==6.2.2", "pydantic==2.13.2", "tzdata==2026.1"]
+dependencies = [
+    "croniter==6.2.2",
+    "pydantic==2.13.2",
+    "pydantic-settings==2.13.1",
+    "tzdata==2026.1",
+]
 
 [dependency-groups]
 dev = ["pytest==9.0.3", "ruff==0.15.11", "ty==0.0.31"]
@@ -19,3 +24,10 @@ build-backend = "uv_build"
 
 [tool.ruff]
 line-length = 120
+
+[tool.ruff.lint]
+ignore = ["PLR2004", "PLR0913"]
+select = ["E4", "E7", "E9", "F", "C", "Q", "B", "A", "PL", "I", "RET"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

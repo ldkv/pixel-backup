@@ -1,7 +1,0 @@
-{
-    "syncthing_dir": "/immich/syncthing",
-    "upper_limit_gb": 20.0,
-    "cron_schedule": "0 0 * * *",
-    "timezone": "UTC",
-    "min_sleep_seconds": 60
-}
