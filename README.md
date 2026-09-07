@@ -161,7 +161,7 @@ uv run pixel-backup
 
 ## Configuration
 
-Sync behavior is configured via environment variables (see [Environment Variables](#environment-variables)). Per-user state is stored in a JSON file whose path is set by `USER_CONFIGS` (default `./configs/users.json`).
+Sync behavior is configured via environment variables (see [Environment Variables](#environment-variables)). Users are defined in a JSON file whose path is set by `USER_CONFIGS` (default `./configs/users.json`). Sync history (which files have been synced, grouped by batch) is tracked in a SQLite database at `DB_PATH` (default `./configs/pixel_backup.db`), auto-created on first run.
 
 #### Cron Schedule Examples
 
@@ -196,7 +196,8 @@ Defines which users to sync and tracks progress.
 | `username`            | **Required.** Used as the per-user subfolder name under `syncthing_dir`.                                    |
 | `source_dir`          | **Required.** Absolute path to this user's library directory. Must share a filesystem with `syncthing_dir`. |
 | `asset_created_after` | Only sync assets created after this timestamp (ISO 8601). Use `1970-01-01T00:00:00` for all assets.         |
-| `last_timestamp_ns`   | **Auto-managed.** Nanosecond timestamp of last synced file. Modify only to force resync.                    |
+
+Sync progress itself (which files have been synced) is tracked separately in the SQLite database at `DB_PATH`, not in this file.
 
 **Multiple Users:** Users are processed sequentially. Each user consumes the remaining quota under `upper_limit_gb` until exhausted; later users are skipped with a Discord alert (if configured).
 
@@ -220,6 +221,7 @@ All sync behavior (paths, quota, schedule, notifications) is configured via envi
 | Variable              | Default                | Description                                                                                                                                                                                               |
 | --------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `USER_CONFIGS`        | `./configs/users.json` | Path to the `users.json` config file. Ignored inside Docker (always `/app/configs/users.json`).                                                                                                           |
+| `DB_PATH`             | `./configs/pixel_backup.db` | Path to the SQLite database tracking sync history (batches and synced files). Auto-created on first run.                                                                                            |
 | `DATA_ROOT`           | `/data`                | Host directory bind-mounted into the container at the same path. **Must be a common parent** of every user's `source_dir` and of `SYNCTHING_DIR` — hard links require one shared filesystem. Docker-only. |
 | `SYNCTHING_DIR`       | `/data/syncthing`      | Directory where hard links are created for Syncthing to sync. Must live under `DATA_ROOT`.                                                                                                                |
 | `UPPER_LIMIT_GB`      | `20.0`                 | Maximum Syncthing folder size in GB. Tool stops adding files when reached.                                                                                                                                |
@@ -259,10 +261,10 @@ Notifications are skipped in dry-run mode and when the variable is unset.
 
 ### Forcing a Resync
 
-To resync from a specific date, edit `configs/users.json`:
+To resync from a specific date:
 
-1. Update `asset_created_after` to your desired start date
-2. Remove the `last_timestamp_ns` field if present
+1. Update `asset_created_after` in `configs/users.json` to your desired start date
+2. Delete that user's rows from the SQLite history (`DELETE FROM synced_files WHERE username = '<USERNAME>'`), or delete `configs/pixel_backup.db` entirely to reset all users
 3. Restart the service
 
 ```json

@@ -6,6 +6,7 @@ authors = [{ name = "Vu LE", email = "ledkvu@gmail.com" }]
 requires-python = ">=3.14"
 dependencies = [
     "croniter==6.2.4",
+    "django-bolt>=0.11.0",
     "pydantic==2.13.5",
     "pydantic-settings==2.15.0",
     "tzdata==2026.3",
