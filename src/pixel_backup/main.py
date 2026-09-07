@@ -1,22 +1,22 @@
 import argparse
+import asyncio
+import contextlib
 import logging
+import os
 import signal
-from datetime import datetime, timedelta
-from threading import Event
 
-from pixel_backup.settings import ENV_VARS
-from pixel_backup.sync import sync_all_users
-from pixel_backup.utils import seconds_until_next_cron
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pixel_backup.settings")
+import django  # noqa: E402
+
+django.setup()
+
+from django.core.management import call_command  # noqa: E402
+
+from pixel_backup.daemon import run_daemon  # noqa: E402
+from pixel_backup.env import ENV_VARS  # noqa: E402
+from pixel_backup.sync import sync_all_users  # noqa: E402
 
 logger = logging.getLogger(__name__)
-
-shutdown_event = Event()
-
-
-def handle_signal(signum: int, _frame: object):
-    sig_name = signal.Signals(signum).name
-    logger.info(f"Received {sig_name}. Shutting down gracefully...")
-    shutdown_event.set()
 
 
 def configure_logging():
@@ -47,20 +47,19 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def sync_loop():
-    now = datetime.now(ENV_VARS.timezone)
-    sleep_secs = seconds_until_next_cron(ENV_VARS.cron_schedule, now, ENV_VARS.min_sleep_seconds)
-    next_sync_time = now + timedelta(seconds=sleep_secs)
+async def _run_standalone_daemon():
+    loop = asyncio.get_running_loop()
+    task = asyncio.current_task()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, task.cancel)
 
-    logger.info(f"Next sync at {next_sync_time}. Sleeping for {sleep_secs:.0f} seconds...")
-    if shutdown_event.wait(timeout=sleep_secs):
-        return
-
-    sync_all_users(ENV_VARS)
+    with contextlib.suppress(asyncio.CancelledError):
+        await run_daemon()
 
 
 def main():
     configure_logging()
+    call_command("migrate", verbosity=0)
     args = parse_args()
     if args.dry_run:
         logger.info("DRY RUN mode enabled. No files will be linked.")
@@ -70,21 +69,7 @@ def main():
         sync_all_users(ENV_VARS, dry_run=args.dry_run)
         return
 
-    signal.signal(signal.SIGTERM, handle_signal)
-    signal.signal(signal.SIGINT, handle_signal)
-
-    backoff_seconds = 0
-    logger.info("Executing continuous sync...")
-    while not shutdown_event.is_set():
-        try:
-            sync_loop()
-            backoff_seconds = 0
-        except Exception:
-            backoff_seconds = min(backoff_seconds * 2 or 60, 3600)
-            logger.exception(f"Sync failed. Retrying in {backoff_seconds} seconds...")
-            if shutdown_event.wait(timeout=backoff_seconds):
-                break
-
+    asyncio.run(_run_standalone_daemon())
     logger.info("Shutdown complete.")
 
 

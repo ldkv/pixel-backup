@@ -1,37 +1,33 @@
+"""Django settings for the pixel_backup project."""
+
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pixel_backup.env import ENV_VARS
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        str_strip_whitespace=True,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+SECRET_KEY = "django-insecure-pixel-backup"  # nosec: no user-facing web app, LAN/local tool only
+DEBUG = False
+ALLOWED_HOSTS = ["*"]
 
-    pytest_version: str = ""
-    data_dir: Path = Path("./configs")
-    syncthing_dir: Path = Path("/immich/syncthing")
-    upper_limit_gb: float = 20.0
-    cron_schedule: str = "0 0 * * *"
-    timezone: ZoneInfo = ZoneInfo("UTC")
-    min_sleep_seconds: int = 60
-    discord_webhook_url: str = ""
+ROOT_URLCONF = "pixel_backup.urls"
 
-    @property
-    def user_configs(self) -> Path:
-        return self.data_dir / "users.json"
+INSTALLED_APPS = [
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
+    "django_bolt",
+    "pixel_backup.history",
+]
 
-    @property
-    def db_path(self) -> Path:
-        return self.data_dir / "pixel_backup.db"
+ENV_VARS.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    @property
-    def user_state(self) -> Path:
-        return self.data_dir / "users_state.json"
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ENV_VARS.db_path,
+    }
+}
 
-
-ENV_VARS = Settings()
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+USE_TZ = True
+TIME_ZONE = "UTC"

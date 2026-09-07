@@ -12,6 +12,8 @@ services:
       - ${DATA_ROOT:-/immich}:${DATA_ROOT:-/immich} # Must be parent of syncthing volume
       - ./configs:/app/configs
       - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8000:8000" # History API (/status, /history/<username>)
 
   syncthing:
     image: syncthing/syncthing:2.0.16

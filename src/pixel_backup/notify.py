@@ -3,7 +3,7 @@ import logging
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from pixel_backup.settings import ENV_VARS
+from pixel_backup.env import ENV_VARS
 
 logger = logging.getLogger(__name__)
 

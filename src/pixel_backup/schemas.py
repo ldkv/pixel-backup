@@ -5,7 +5,7 @@ from typing import ClassVar, Self
 
 from pydantic import BaseModel, field_validator
 
-from pixel_backup.settings import ENV_VARS
+from pixel_backup.env import ENV_VARS
 
 logger = logging.getLogger(__name__)
 

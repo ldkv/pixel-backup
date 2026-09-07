@@ -105,6 +105,7 @@ docker compose up -d --build
 ```
 
 Syncthing UI: `http://localhost:8384`
+History API: `http://localhost:8000/status` and `http://localhost:8000/history/<username>`
 
 ---
 
@@ -197,7 +198,7 @@ Defines which users to sync and tracks progress.
 | `source_dir`          | **Required.** Absolute path to this user's library directory. Must share a filesystem with `syncthing_dir`. |
 | `asset_created_after` | Only sync assets created after this timestamp (ISO 8601). Use `1970-01-01T00:00:00` for all assets.         |
 
-Sync progress itself (which files have been synced) is tracked separately in the SQLite database at `DB_PATH`, not in this file.
+Sync progress itself (which files have been synced) is tracked separately in a SQLite database managed by Django (models in `pixel_backup.history`), not in this file. Migrations run automatically on startup.
 
 **Multiple Users:** Users are processed sequentially. Each user consumes the remaining quota under `upper_limit_gb` until exhausted; later users are skipped with a Discord alert (if configured).
 
@@ -264,7 +265,7 @@ Notifications are skipped in dry-run mode and when the variable is unset.
 To resync from a specific date:
 
 1. Update `asset_created_after` in `configs/users.json` to your desired start date
-2. Delete that user's rows from the SQLite history (`DELETE FROM synced_files WHERE username = '<USERNAME>'`), or delete `configs/pixel_backup.db` entirely to reset all users
+2. Delete that user's rows from the sync history (`python manage.py shell -c "from pixel_backup.history.models import SyncedFile; SyncedFile.objects.filter(username='<USERNAME>').delete()"`), or delete `configs/pixel_backup.db` entirely to reset all users
 3. Restart the service
 
 ```json
@@ -288,10 +289,12 @@ docker compose down  # Docker
 This project uses [uv](https://docs.astral.sh/uv/) for dependency management and [Task](https://taskfile.dev/) for task automation.
 
 ```bash
-uv sync           # Install all dependencies
-uv run pytest     # Run tests
-task code-quality # Run format, lint, and type checks
-task check-all    # Run all checks and tests
+uv sync                       # Install all dependencies
+uv run pytest                 # Run tests
+task code-quality             # Run format, lint, and type checks
+task check-all                # Run all checks and tests
+uv run python manage.py migrate  # Apply Django migrations (also runs automatically on startup)
+uv run python manage.py runbolt  # Serve the sync daemon (via lifespan) + read-only history API together
 ```
 
 Available tasks (run `task --list` for complete list):

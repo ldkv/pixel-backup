@@ -206,6 +206,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "croniter" },
+    { name = "django" },
     { name = "django-bolt" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -215,6 +216,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pytest-django" },
     { name = "ruff" },
     { name = "ty" },
 ]
@@ -222,6 +224,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "croniter", specifier = "==6.2.4" },
+    { name = "django", specifier = ">=6.1" },
     { name = "django-bolt", specifier = ">=0.11.0" },
     { name = "pydantic", specifier = "==2.13.5" },
     { name = "pydantic-settings", specifier = "==2.15.0" },
@@ -231,6 +234,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = "==9.1.1" },
+    { name = "pytest-django", specifier = "==4.11.1" },
     { name = "ruff", specifier = "==0.16.6" },
     { name = "ty", specifier = "==0.0.78" },
 ]
@@ -346,6 +350,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
+]
+
+[[package]]
+name = "pytest-django"
+version = "4.11.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/fb/55d580352db26eb3d59ad50c64321ddfe228d3d8ac107db05387a2fadf3a/pytest_django-4.11.1.tar.gz", hash = "sha256:a949141a1ee103cb0e7a20f1451d355f83f5e4a5d07bdd4dcfdd1fd0ff227991", size = 86202, upload-time = "2025-04-03T18:56:09.338Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/be/ac/bd0608d229ec808e51a21044f3f2f27b9a37e7a0ebaca7247882e67876af/pytest_django-4.11.1-py3-none-any.whl", hash = "sha256:1b63773f648aa3d8541000c26929c1ea63934be1cfa674c76436966d73fe6a10", size = 25281, upload-time = "2025-04-03T18:56:07.678Z" },
 ]
 
 [[package]]

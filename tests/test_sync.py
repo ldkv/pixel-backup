@@ -1,34 +1,28 @@
 import os
-import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-from pixel_backup.db import SyncedFile, connect, get_last_synced_ns, init_db, is_synced, record_batch
+from pixel_backup.env import Settings
+from pixel_backup.history.repository import PendingFile, get_last_synced_ns, is_synced, record_batch
 from pixel_backup.schemas import User, UserConfig
-from pixel_backup.settings import Settings
 from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_source
 from pixel_backup.utils import GIGABYTE, consistent_dir, generate_destination_path
 
-
-def make_conn(tmp_path: Path) -> sqlite3.Connection:
-    conn = connect(tmp_path / "test.db")
-    init_db(conn)
-    return conn
+pytestmark = pytest.mark.django_db
 
 
 class TestSyncPerUser:
     @pytest.fixture(autouse=True)
     def _setup(self, tmp_path: Path):
-        self.conn = make_conn(tmp_path)
         self.syncthing_dir = tmp_path / "syncthing"
         self.username = "testuser"
         self.user_dir = tmp_path / self.username
         self.syncthing_dir.mkdir(parents=True, exist_ok=True)
         self.user_dir.mkdir(parents=True, exist_ok=True)
-        self.fixed_args = (self.conn, self.syncthing_dir, self.username, self.user_dir)
+        self.fixed_args = (self.syncthing_dir, self.username, self.user_dir)
 
     def test_sync_basic_assets(self):
         # Create test files
@@ -77,9 +71,8 @@ class TestSyncPerUser:
         source_file = self.user_dir / "photo.jpg"
         source_file.write_text("content")
         record_batch(
-            self.conn,
             self.username,
-            [SyncedFile(source_file, self.syncthing_dir / "photo.jpg", 7, 1_000)],
+            [PendingFile(source_file, self.syncthing_dir / "photo.jpg", 7, 1_000)],
         )
 
         added_bytes, synced_files = sync_per_source(*self.fixed_args, 0, 10000.0)
@@ -92,13 +85,12 @@ class TestDryRun:
     @pytest.fixture(autouse=True)
     def _setup(self, tmp_path: Path):
         self.tmp_path = tmp_path
-        self.conn = make_conn(tmp_path)
         self.syncthing_dir = tmp_path / "syncthing"
         self.username = "testuser"
         self.user_dir = tmp_path / self.username
         self.syncthing_dir.mkdir(parents=True, exist_ok=True)
         self.user_dir.mkdir(parents=True, exist_ok=True)
-        self.fixed_args = (self.conn, self.syncthing_dir, self.username, self.user_dir)
+        self.fixed_args = (self.syncthing_dir, self.username, self.user_dir)
 
     def test_dry_run_does_not_create_links(self):
         file1 = self.user_dir / "photo1.jpg"
@@ -121,21 +113,17 @@ class TestDryRun:
                 )
             ]
         )
-        db_path = self.tmp_path / "test.db"
 
         with patch("pixel_backup.sync.UserConfig.load") as mock_load:
             mock_load.return_value = user_config
             settings = Settings(
                 syncthing_dir=self.syncthing_dir,
                 upper_limit_gb=1.0 / GIGABYTE,
-                db_path=db_path,
             )
             sync_all_users(settings, dry_run=True)
 
-        conn = connect(db_path)
-        init_db(conn)
-        assert get_last_synced_ns(conn, "testuser") == 0
-        assert is_synced(conn, "testuser", (self.user_dir / "photo.jpg").as_posix()) is False
+        assert get_last_synced_ns("testuser") == 0
+        assert is_synced("testuser", (self.user_dir / "photo.jpg").as_posix()) is False
 
 
 class TestLinkWithRetry:
@@ -216,7 +204,6 @@ class TestSyncAllUsers:
             settings = Settings(
                 syncthing_dir=syncthing_dir,
                 upper_limit_gb=10 / GIGABYTE,  # Only enough for ~2 users
-                db_path=tmp_path / "test.db",
             )
 
             sync_all_users(settings)
@@ -254,7 +241,6 @@ class TestSyncAllUsers:
             settings = Settings(
                 syncthing_dir=syncthing_dir,
                 upper_limit_gb=1 / GIGABYTE,
-                db_path=tmp_path / "test.db",
             )
             sync_all_users(settings, dry_run=True)
 
@@ -282,7 +268,6 @@ class TestSyncAllUsers:
             settings = Settings(
                 syncthing_dir=syncthing_dir,
                 upper_limit_gb=1.0 / GIGABYTE,
-                db_path=tmp_path / "test.db",
             )
 
             sync_all_users(settings)
