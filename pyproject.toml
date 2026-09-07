@@ -1,7 +1,7 @@
 [project]
 name = "pixel-backup"
 version = "0.1.0"
-description = "Automatically backup local library to Google Pixel using Syncthing."
+description = "Automatically backup local media library to Google Pixel via Syncthing."
 authors = [{ name = "Vu LE", email = "ledkvu@gmail.com" }]
 requires-python = ">=3.14"
 dependencies = [
@@ -14,11 +14,15 @@ dependencies = [
 [dependency-groups]
 dev = ["pytest==9.1.1", "ruff==0.16.6", "ty==0.0.78"]
 
+[tool.uv]
+exclude-newer = "3 days"
+
+
 [project.scripts]
 pixel-backup = "pixel_backup.main:main"
 
 [build-system]
-requires = ["uv_build==0.12.10"]
+requires = ["uv_build>=0.12"]
 build-backend = "uv_build"
 
 
