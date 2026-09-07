@@ -85,3 +85,26 @@ tasks:
     cmds:
       - docker build -t git.ledkvu.com/ldkv/pixel-backup:latest .
       - docker push git.ledkvu.com/ldkv/pixel-backup:latest
+
+  bump:
+    desc: Bump the package version, e.g. 'task bump level=minor'
+    requires:
+      vars:
+        - name: level
+          enum: [patch, minor, major]
+    cmds:
+      - uv version --bump {{.level}}
+
+  bump-pr:
+    desc: Bump the version and create a pull request, e.g. 'task bump-pr level=minor'
+    deps: [bump]
+    cmds:
+      - |
+        set -euo pipefail
+        NEW_VERSION=$(uv version --short)
+        BRANCH_NAME="bump-version-$NEW_VERSION"
+        git checkout -b "$BRANCH_NAME"
+        git add pyproject.toml uv.lock
+        git commit -m "chore: bump version to $NEW_VERSION"
+        git push --set-upstream origin "$BRANCH_NAME"
+        gh pr create --title "chore: bump version to $NEW_VERSION" --body "Automated version bump via task." --base main
