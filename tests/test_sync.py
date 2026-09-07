@@ -5,10 +5,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from pixel_backup.env import Settings
+from pixel_backup.history.repository import PendingFile, get_last_synced_ns, is_synced, record_batch
 from pixel_backup.schemas import User, UserConfig
-from pixel_backup.settings import Settings
 from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_source
 from pixel_backup.utils import GIGABYTE, consistent_dir, generate_destination_path
+
+pytestmark = pytest.mark.django_db
 
 
 class TestSyncPerUser:
@@ -28,22 +31,24 @@ class TestSyncPerUser:
         file1.write_text("content1")
         file2.write_text("content2")
 
-        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
+        added_bytes, synced_files = sync_per_source(*self.fixed_args, 0, 10000.0)
 
         # Verify files were linked
         assert added_bytes == 16
-        assert added_files[0].parent.name == added_files[1].parent.name == consistent_dir(self.user_dir)
+        assert (
+            synced_files[0].dest_path.parent.name
+            == synced_files[1].dest_path.parent.name
+            == consistent_dir(self.user_dir)
+        )
         # Verify they are hard links (same inode on Linux/Windows compatible check)
-        assert os.path.samefile(file1, added_files[0])
-        assert os.path.samefile(file2, added_files[1])
+        assert os.path.samefile(file1, synced_files[0].dest_path)
+        assert os.path.samefile(file2, synced_files[1].dest_path)
 
     def test_sync_no_assets(self):
-        last_timestamp_ns = 0
-        added_bytes, added_files, last_created_at = sync_per_source(*self.fixed_args, last_timestamp_ns, 1)
+        added_bytes, synced_files = sync_per_source(*self.fixed_args, 0, 1)
 
         assert added_bytes == 0
-        assert added_files == []
-        assert last_created_at == last_timestamp_ns
+        assert synced_files == []
 
     def test_sync_skips_existing_destinations(self):
         # Create source file
@@ -55,17 +60,31 @@ class TestSyncPerUser:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text("existing content")
 
-        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
+        added_bytes, synced_files = sync_per_source(*self.fixed_args, 0, 10000.0)
 
         # No bytes should be added since file was skipped
         assert added_bytes == 0
-        assert added_files == []
+        assert synced_files == []
         assert dest_path.read_text() == "existing content"
+
+    def test_sync_skips_already_recorded_files(self):
+        source_file = self.user_dir / "photo.jpg"
+        source_file.write_text("content")
+        record_batch(
+            self.username,
+            [PendingFile(source_file, self.syncthing_dir / "photo.jpg", 7, 1_000)],
+        )
+
+        added_bytes, synced_files = sync_per_source(*self.fixed_args, 0, 10000.0)
+
+        assert added_bytes == 0
+        assert synced_files == []
 
 
 class TestDryRun:
     @pytest.fixture(autouse=True)
     def _setup(self, tmp_path: Path):
+        self.tmp_path = tmp_path
         self.syncthing_dir = tmp_path / "syncthing"
         self.username = "testuser"
         self.user_dir = tmp_path / self.username
@@ -77,13 +96,13 @@ class TestDryRun:
         file1 = self.user_dir / "photo1.jpg"
         file1.write_text("content1")
 
-        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0, dry_run=True)
+        added_bytes, synced_files = sync_per_source(*self.fixed_args, 0, 10000.0, dry_run=True)
 
         assert added_bytes > 0
-        assert len(added_files) == 1
+        assert len(synced_files) == 1
         assert not (self.syncthing_dir / "testuser").exists()
 
-    def test_dry_run_does_not_update_user_config(self):
+    def test_dry_run_does_not_persist_history(self):
         (self.user_dir / "photo.jpg").write_text("content")
         user_config = UserConfig(
             users=[
@@ -94,14 +113,17 @@ class TestDryRun:
                 )
             ]
         )
-        original_ts = user_config.users[0].last_timestamp_ns
 
         with patch("pixel_backup.sync.UserConfig.load") as mock_load:
             mock_load.return_value = user_config
-            settings = Settings(syncthing_dir=self.syncthing_dir, upper_limit_gb=1.0 / GIGABYTE)
+            settings = Settings(
+                syncthing_dir=self.syncthing_dir,
+                upper_limit_gb=1.0 / GIGABYTE,
+            )
             sync_all_users(settings, dry_run=True)
 
-        assert user_config.users[0].last_timestamp_ns == original_ts
+        assert get_last_synced_ns("testuser") == 0
+        assert is_synced("testuser", (self.user_dir / "photo.jpg").as_posix()) is False
 
 
 class TestLinkWithRetry:
@@ -216,7 +238,10 @@ class TestSyncAllUsers:
             patch("pixel_backup.sync.send_discord_notification") as mock_notify,
         ):
             mock_load.return_value = user_config
-            settings = Settings(syncthing_dir=syncthing_dir, upper_limit_gb=1 / GIGABYTE)
+            settings = Settings(
+                syncthing_dir=syncthing_dir,
+                upper_limit_gb=1 / GIGABYTE,
+            )
             sync_all_users(settings, dry_run=True)
 
         mock_notify.assert_not_called()
@@ -240,7 +265,10 @@ class TestSyncAllUsers:
         with patch(self.user_config_mock_path) as mock_load:
             mock_load.return_value = user_config
 
-            settings = Settings(syncthing_dir=syncthing_dir, upper_limit_gb=1.0 / GIGABYTE)
+            settings = Settings(
+                syncthing_dir=syncthing_dir,
+                upper_limit_gb=1.0 / GIGABYTE,
+            )
 
             sync_all_users(settings)
 

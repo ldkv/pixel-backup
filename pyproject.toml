@@ -6,16 +6,25 @@ authors = [{ name = "Vu LE", email = "ledkvu@gmail.com" }]
 requires-python = ">=3.14"
 dependencies = [
     "croniter==6.2.4",
+    "django>=6.1",
+    "django-bolt>=0.11.0",
     "pydantic==2.13.5",
     "pydantic-settings==2.15.0",
     "tzdata==2026.3",
 ]
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "ruff==0.16.6", "ty==0.0.78"]
+dev = ["pytest==9.1.1", "pytest-django==4.11.1", "ruff==0.16.6", "ty==0.0.78"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "pixel_backup.settings"
 
 [tool.uv]
 exclude-newer = "3 days"
+
+[tool.ty.rules]
+# ty doesn't resolve Django's dynamically-generated `.objects` manager on models.
+unresolved-attribute = "ignore"
 
 
 [project.scripts]
