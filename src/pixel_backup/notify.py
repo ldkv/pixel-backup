@@ -11,6 +11,10 @@ REQUEST_TIMEOUT_SECONDS = 10
 
 
 def send_discord_notification(message: str):
+    if ENV_VARS.pytest_version:
+        logger.info("Skipped during unit tests.")
+        return
+
     if not ENV_VARS.discord_webhook_url:
         logger.warning("Discord webhook URL is not set. Skipping notification.")
         return

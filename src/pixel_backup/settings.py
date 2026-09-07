@@ -12,6 +12,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    pytest_version: str = ""
     user_configs: Path = Path("./configs/users.json")
     syncthing_dir: Path = Path("/immich/syncthing")
     upper_limit_gb: float = 20.0

@@ -66,7 +66,7 @@ def sync_all_users(settings: Settings, dry_run: bool = False):
         send_discord_notification(message)
 
 
-def sync_per_source(
+def sync_per_source(  # noqa: PLR0917
     dest_dir: Path,
     username: str,
     source_dir: Path,
