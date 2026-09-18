@@ -33,7 +33,7 @@ def sync_all_users(settings: Settings, dry_run: bool = False):
 
         logger.info(f"Syncing user {user.username} with quota of {remaining_bytes / MEGABYTE:.2f}MB...")
         try:
-            added_bytes, added_files, last_timestamp_ns = sync_per_source(
+            added_bytes, added_files, last_timestamp_ns, quota_exhausted = sync_per_source(
                 settings.syncthing_dir,
                 user.username,
                 user.source_dir,
@@ -44,6 +44,13 @@ def sync_all_users(settings: Settings, dry_run: bool = False):
         except Exception:
             logger.exception(f"Failed to sync for user {user.username}. Skipping.")
             continue
+
+        if quota_exhausted:
+            message = f"Quota exhausted. Reached upper limit of {settings.upper_limit_gb}GB. Please free up space on your Pixel."
+            logger.info(message)
+            if not dry_run:
+                send_discord_notification(message)
+            break
 
         if not added_bytes:
             logger.info(f"No new assets for user {user.username}.")
@@ -73,20 +80,22 @@ def sync_per_source(  # noqa: PLR0917
     last_timestamp_ns: int,
     user_quota_bytes: float,
     dry_run: bool = False,
-) -> tuple[int, list[Path], int]:
+) -> tuple[int, list[Path], int, bool]:
     validate_source_dir(source_dir, dest_dir)
     assets = fetch_local_assets(source_dir, last_timestamp_ns)
     if not assets:
-        return 0, [], last_timestamp_ns
+        return 0, [], last_timestamp_ns, False
 
     added_bytes = 0
     added_files = []
+    quota_exhausted = False
     action = "Previewing" if dry_run else "Generating"
     logger.info(f"Found {len(assets)} new assets for user {username}. {action} links...")
     created_dirs = set()
     dest_user_dir = Path(dest_dir, username)
     for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
         if added_bytes + asset_size > user_quota_bytes:
+            quota_exhausted = True
             break
 
         dest = generate_destination_path(dest_user_dir, asset_path)
@@ -107,7 +116,7 @@ def sync_per_source(  # noqa: PLR0917
         added_bytes += asset_size
         added_files.append(dest)
 
-    return added_bytes, added_files, last_timestamp_ns
+    return added_bytes, added_files, last_timestamp_ns, quota_exhausted
 
 
 def link_with_retry(src: Path, dest: Path, retries: int = MAX_LINK_RETRIES) -> None:

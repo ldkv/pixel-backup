@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     pytest_version: str = ""
     user_configs: Path = Path("./configs/users.json")
     syncthing_dir: Path = Path("/immich/syncthing")
-    upper_limit_gb: float = 20.0
+    upper_limit_gb: float = 19.0
     cron_schedule: str = "0 0 * * *"
     timezone: ZoneInfo = ZoneInfo("UTC")
     min_sleep_seconds: int = 60
