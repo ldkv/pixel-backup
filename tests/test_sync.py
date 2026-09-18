@@ -136,21 +136,21 @@ class TestLinkWithRetry:
             original_link(s, d)
 
         with patch("pixel_backup.sync.os.link", side_effect=flaky_link), patch("pixel_backup.sync.time.sleep"):
-            link_with_retry(src, dest, retries=3)
+            assert link_with_retry(src, dest, retries=3) is True
 
         assert call_count == 3
 
-    def test_raises_after_max_retries(self, tmp_path: Path):
+    def test_skips_after_max_retries(self, tmp_path: Path):
         src = tmp_path / "source.txt"
         src.write_text("hello")
         dest = tmp_path / "dest.txt"
 
         with (
-            patch("pixel_backup.sync.os.link", side_effect=OSError("Permanent error")),
+            patch("pixel_backup.sync.os.link", side_effect=OSError("Permanent error")) as mock_link,
             patch("pixel_backup.sync.time.sleep"),
-            pytest.raises(OSError),
         ):
-            link_with_retry(src, dest, retries=3)
+            assert link_with_retry(src, dest, retries=3) is False
+            assert mock_link.call_count == 3
 
 
 class TestSyncAllUsers:

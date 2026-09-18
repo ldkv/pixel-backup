@@ -119,14 +119,14 @@ def sync_per_source(  # noqa: PLR0917
     return added_bytes, added_files, last_timestamp_ns, quota_exhausted
 
 
-def link_with_retry(src: Path, dest: Path, retries: int = MAX_LINK_RETRIES) -> None:
+def link_with_retry(src: Path, dest: Path, retries: int = MAX_LINK_RETRIES) -> bool:
     for attempt in range(1, retries + 1):
         try:
             os.link(src, dest)
-            return
+            return True
         except OSError:
-            if attempt == retries:
-                raise
-
             logger.warning(f"Failed to link {src} -> {dest} (attempt {attempt}/{retries}). Retrying...")
             time.sleep(RETRY_DELAY_SECONDS * attempt)
+
+    logger.error(f"Failed to link {src} -> {dest} after {attempt} attempt. Skipped.")
+    return False
