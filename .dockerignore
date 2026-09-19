@@ -20,13 +20,8 @@ ENV/
 .vscode/
 
 # Dockerignore
-.dev/
-.github/
 tests/
 config/
 data/
 LICENSE
-README.md
-docker-compose.yml
 Taskfile.yml
-

@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from pixel_backup.env import Settings
 from pixel_backup.schemas import User, UserConfig
+from pixel_backup.settings import Settings
 from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_source
 from pixel_backup.utils import GIGABYTE, consistent_dir, generate_destination_path
 

@@ -25,9 +25,6 @@ pixel-backup = "pixel_backup.main:main"
 requires = ["uv_build>=0.12"]
 build-backend = "uv_build"
 
-[tool.uv.build-backend]
-module-root = ""
-
 
 [tool.ruff]
 line-length = 120
