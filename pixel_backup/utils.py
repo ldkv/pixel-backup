@@ -13,7 +13,7 @@ def seconds_until_next_cron(cron_schedule: str, current_time: datetime, min_slee
     return max(sleep_secs, min_sleep_seconds)
 
 
-def validate_source_dir(source_dir: Path, dest_dir: Path):
+def validate_source_dir(source_dir: Path, dest_dir: Path) -> None:
     if not source_dir.is_dir():
         raise ValueError(f"Source directory does not exist or is not a directory: {source_dir}")
 

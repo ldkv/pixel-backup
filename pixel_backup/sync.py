@@ -15,7 +15,7 @@ MAX_LINK_RETRIES = 3
 RETRY_DELAY_SECONDS = 0.5
 
 
-def sync_all_users(settings: Settings, dry_run: bool = False):
+def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
     start_time = time.monotonic()
     settings.syncthing_dir.mkdir(parents=True, exist_ok=True)
     current_size_bytes = get_folder_size_bytes(settings.syncthing_dir)
@@ -73,7 +73,7 @@ def sync_all_users(settings: Settings, dry_run: bool = False):
         send_discord_notification(message)
 
 
-def sync_per_source(  # noqa: PLR0917
+def sync_per_source(  # noqa: PLR0913, PLR0917
     dest_dir: Path,
     username: str,
     source_dir: Path,

@@ -13,7 +13,7 @@ from pixel_backup.utils import GIGABYTE, consistent_dir, generate_destination_pa
 
 class TestSyncPerUser:
     @pytest.fixture(autouse=True)
-    def _setup(self, tmp_path: Path):
+    def _setup(self, tmp_path: Path) -> None:
         self.syncthing_dir = tmp_path / "syncthing"
         self.username = "testuser"
         self.user_dir = tmp_path / self.username
@@ -21,7 +21,7 @@ class TestSyncPerUser:
         self.user_dir.mkdir(parents=True, exist_ok=True)
         self.fixed_args = (self.syncthing_dir, self.username, self.user_dir)
 
-    def test_sync_basic_assets(self):
+    def test_sync_basic_assets(self) -> None:
         # Create test files
         file1 = self.user_dir / "photo1.jpg"
         file2 = self.user_dir / "photo2.jpg"
@@ -38,7 +38,7 @@ class TestSyncPerUser:
         assert os.path.samefile(file1, added_files[0])
         assert os.path.samefile(file2, added_files[1])
 
-    def test_sync_no_assets(self):
+    def test_sync_no_assets(self) -> None:
         last_timestamp_ns = 0
         added_bytes, added_files, last_created_at, quota_exhausted = sync_per_source(
             *self.fixed_args, last_timestamp_ns, 1
@@ -49,7 +49,7 @@ class TestSyncPerUser:
         assert last_created_at == last_timestamp_ns
         assert quota_exhausted is False
 
-    def test_sync_skips_existing_destinations(self):
+    def test_sync_skips_existing_destinations(self) -> None:
         # Create source file
         source_file = self.user_dir / "photo.jpg"
         source_file.write_text("original content")
@@ -70,7 +70,7 @@ class TestSyncPerUser:
 
 class TestDryRun:
     @pytest.fixture(autouse=True)
-    def _setup(self, tmp_path: Path):
+    def _setup(self, tmp_path: Path) -> None:
         self.syncthing_dir = tmp_path / "syncthing"
         self.username = "testuser"
         self.user_dir = tmp_path / self.username
@@ -78,7 +78,7 @@ class TestDryRun:
         self.user_dir.mkdir(parents=True, exist_ok=True)
         self.fixed_args = (self.syncthing_dir, self.username, self.user_dir)
 
-    def test_dry_run_does_not_create_links(self):
+    def test_dry_run_does_not_create_links(self) -> None:
         file1 = self.user_dir / "photo1.jpg"
         file1.write_text("content1")
 
@@ -88,7 +88,7 @@ class TestDryRun:
         assert len(added_files) == 1
         assert not (self.syncthing_dir / "testuser").exists()
 
-    def test_dry_run_does_not_update_user_config(self):
+    def test_dry_run_does_not_update_user_config(self) -> None:
         (self.user_dir / "photo.jpg").write_text("content")
         user_config = UserConfig(
             users=[
@@ -110,7 +110,7 @@ class TestDryRun:
 
 
 class TestLinkWithRetry:
-    def test_successful_link(self, tmp_path: Path):
+    def test_successful_link(self, tmp_path: Path) -> None:
         src = tmp_path / "source.txt"
         src.write_text("hello")
         dest = tmp_path / "dest.txt"
@@ -120,7 +120,7 @@ class TestLinkWithRetry:
         assert dest.exists()
         assert os.path.samefile(src, dest)
 
-    def test_retries_on_failure(self, tmp_path: Path):
+    def test_retries_on_failure(self, tmp_path: Path) -> None:
         src = tmp_path / "source.txt"
         src.write_text("hello")
         dest = tmp_path / "dest.txt"
@@ -128,7 +128,7 @@ class TestLinkWithRetry:
         call_count = 0
         original_link = os.link
 
-        def flaky_link(s, d):
+        def flaky_link(s: str, d: str) -> None:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
@@ -140,7 +140,7 @@ class TestLinkWithRetry:
 
         assert call_count == 3
 
-    def test_skips_after_max_retries(self, tmp_path: Path):
+    def test_skips_after_max_retries(self, tmp_path: Path) -> None:
         src = tmp_path / "source.txt"
         src.write_text("hello")
         dest = tmp_path / "dest.txt"
@@ -154,11 +154,11 @@ class TestLinkWithRetry:
 
 
 class TestSyncAllUsers:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.user_config_mock_path = "pixel_backup.sync.UserConfig.load"
 
     @patch("pixel_backup.sync.send_discord_notification")
-    def test_sync_stops_when_quota_exhausted(self, mock_notify: Mock, tmp_path: Path):
+    def test_sync_stops_when_quota_exhausted(self, mock_notify: Mock, tmp_path: Path) -> None:
         user_dir = tmp_path / "library"
         syncthing_dir = tmp_path / "syncthing"
 
@@ -199,7 +199,9 @@ class TestSyncAllUsers:
             assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 2 files")
 
     @patch("pixel_backup.sync.send_discord_notification")
-    def test_sync_notifies_when_remaining_quota_too_small_for_next_asset(self, mock_notify: Mock, tmp_path: Path):
+    def test_sync_notifies_when_remaining_quota_too_small_for_next_asset(
+        self, mock_notify: Mock, tmp_path: Path
+    ) -> None:
         syncthing_dir = tmp_path / "syncthing"
         syncthing_dir.mkdir()
         # Pre-existing content leaves just 2 bytes of quota, not enough for the 10-byte photo below.
@@ -230,7 +232,7 @@ class TestSyncAllUsers:
             assert mock_notify.call_args_list[0].args[0].startswith("Quota exhausted. Reached upper limit of")
             assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 0 files")
 
-    def test_dry_run_does_not_notify(self, tmp_path: Path):
+    def test_dry_run_does_not_notify(self, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
         syncthing_dir.mkdir()
         (syncthing_dir / "big.bin").write_bytes(b"X" * 100)
@@ -258,7 +260,7 @@ class TestSyncAllUsers:
 
         mock_notify.assert_not_called()
 
-    def test_sync_no_new_assets_for_any_user(self, tmp_path: Path):
+    def test_sync_no_new_assets_for_any_user(self, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
         # Create user directory but no files
         user_dir = tmp_path / "testuser"

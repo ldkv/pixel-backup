@@ -23,8 +23,27 @@ exclude-newer = "3 days"
 line-length = 120
 
 [tool.ruff.lint]
-ignore = ["PLR2004", "PLR0913"]
-select = ["E4", "E7", "E9", "F", "C", "Q", "B", "A", "PL", "I", "RET"]
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "C",
+    "Q",
+    "B",
+    "A",
+    "PL",
+    "I",
+    "RET",
+    "ANN20",
+    "ANN00",
+    "ANN401",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "PLR2004", # Allow magic values in tests
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

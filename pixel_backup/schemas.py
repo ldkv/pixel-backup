@@ -51,7 +51,7 @@ class User(BaseModel):
 
         return dt.astimezone(UTC)
 
-    def model_post_init(self, _):
+    def model_post_init(self, _) -> None:  # noqa: ANN001
         self.last_timestamp_ns = self.last_timestamp_ns or int(self.asset_created_after.timestamp() * 1_000_000_000)
 
     def update_timestamp(self, new_timestamp_ns: int) -> None:

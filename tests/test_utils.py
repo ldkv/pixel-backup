@@ -12,7 +12,7 @@ from pixel_backup.utils import (
 
 
 class TestSecondsUntilNextCron:
-    def test_next_cron_basic(self):
+    def test_next_cron_basic(self) -> None:
         # Every hour at minute 0: "0 * * * *"
         current_time = datetime(2024, 1, 1, 10, 30, 0, tzinfo=UTC)
         cron_schedule = "0 * * * *"
@@ -23,7 +23,7 @@ class TestSecondsUntilNextCron:
         # Next execution is at 11:00, which is 30 minutes = 1800 seconds away
         assert result == 1800.0
 
-    def test_next_cron_daily_midnight(self):
+    def test_next_cron_daily_midnight(self) -> None:
         # Daily at midnight: "0 0 * * *"
         current_time = datetime(2024, 1, 1, 10, 30, 0, tzinfo=UTC)
         cron_schedule = "0 0 * * *"
@@ -34,7 +34,7 @@ class TestSecondsUntilNextCron:
         # Next execution is at midnight tomorrow (13.5 hours = 48600 seconds)
         assert result == 48600.0
 
-    def test_min_sleep_seconds_applied(self):
+    def test_min_sleep_seconds_applied(self) -> None:
         # Every minute: "* * * * *"
         current_time = datetime(2024, 1, 1, 10, 30, 0, tzinfo=UTC)
         cron_schedule = "* * * * *"
@@ -45,7 +45,7 @@ class TestSecondsUntilNextCron:
         # Next cron would be in 60 seconds, but min_sleep enforces 300
         assert result == 300
 
-    def test_min_sleep_not_applied_when_cron_larger(self):
+    def test_min_sleep_not_applied_when_cron_larger(self) -> None:
         # Every 10 minutes: "*/10 * * * *"
         current_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)
         cron_schedule = "*/10 * * * *"
@@ -56,7 +56,7 @@ class TestSecondsUntilNextCron:
         # Next execution is in 10 minutes = 600 seconds
         assert result == 600.0
 
-    def test_cron_at_exact_time(self):
+    def test_cron_at_exact_time(self) -> None:
         # Every hour at minute 0
         current_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)
         cron_schedule = "0 * * * *"
@@ -67,7 +67,7 @@ class TestSecondsUntilNextCron:
         # Should get the NEXT occurrence, which is in 1 hour
         assert result == 3600.0
 
-    def test_weekly_schedule(self):
+    def test_weekly_schedule(self) -> None:
         # Every Monday at 3am: "0 3 * * 1"
         # Starting on Sunday 2024-01-07 at 10:30
         current_time = datetime(2024, 1, 7, 10, 30, 0, tzinfo=UTC)
@@ -81,12 +81,12 @@ class TestSecondsUntilNextCron:
 
 
 class TestGetFolderSize:
-    def test_empty_folder(self, tmp_path: Path):
+    def test_empty_folder(self, tmp_path: Path) -> None:
         result = get_folder_size_bytes(tmp_path)
         assert result == 0
         assert isinstance(result, int)
 
-    def test_single_file(self, tmp_path: Path):
+    def test_single_file(self, tmp_path: Path) -> None:
         test_file = tmp_path / "test.txt"
         content = "A" * 1024  # 1 KB
         test_file.write_text(content)
@@ -95,7 +95,7 @@ class TestGetFolderSize:
         expected = 1024
         assert result == expected
 
-    def test_multiple_files(self, tmp_path: Path):
+    def test_multiple_files(self, tmp_path: Path) -> None:
         file1 = tmp_path / "file1.txt"
         file2 = tmp_path / "file2.txt"
         file1.write_text("A" * 2048)  # 2 KB
@@ -105,7 +105,7 @@ class TestGetFolderSize:
         expected = 5120  # 5 KB total
         assert result == expected
 
-    def test_nested_directories(self, tmp_path: Path):
+    def test_nested_directories(self, tmp_path: Path) -> None:
         subdir1 = tmp_path / "subdir1"
         subdir2 = subdir1 / "subdir2"
         subdir3 = tmp_path / "empty2" / "nested"
@@ -124,7 +124,7 @@ class TestGetFolderSize:
         expected = 7168  # 7 KB total
         assert result == expected
 
-    def test_ignores_symlinks(self, tmp_path: Path):
+    def test_ignores_symlinks(self, tmp_path: Path) -> None:
         # Create a regular file
         real_file = tmp_path / "real.txt"
         real_file.write_text("A" * 1024)
@@ -143,7 +143,7 @@ class TestGetFolderSize:
             pytest.skip("Symlinks not supported on this system")
 
 
-def test_consistent_dir():
+def test_consistent_dir() -> None:
     path1 = Path("/path/to/a/")
     path2 = Path("/path/to/a")
     path3 = Path("/path/to/other/")
@@ -156,7 +156,7 @@ def test_consistent_dir():
     assert consistent_dir_1 != consistent_dir_3
 
 
-def test_consistent_dir_max_length():
+def test_consistent_dir_max_length() -> None:
     path1 = Path("/path/to/a/")
     path2 = Path(f"/path/to/{'a' * 100}/")
 
@@ -167,7 +167,7 @@ def test_consistent_dir_max_length():
     assert len(consistent_dir_2) == 48
 
 
-def test_generate_destination_path():
+def test_generate_destination_path() -> None:
     dest_dir = Path("/backup")
     asset_1 = Path("/library/user/photo.jpg")
 
@@ -178,7 +178,7 @@ def test_generate_destination_path():
     assert dest_1 == expected_path
 
 
-def test_generate_destination_path_consistency():
+def test_generate_destination_path_consistency() -> None:
     dest_dir = Path("/backup")
     asset_1 = Path("/library/user/photo.jpg")
     asset_2 = Path("/library/user/photo.jpg")
