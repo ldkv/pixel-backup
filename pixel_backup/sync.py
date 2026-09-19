@@ -3,10 +3,10 @@ import os
 import time
 from pathlib import Path
 
+from pixel_backup.env import Settings
 from pixel_backup.local_disk import fetch_local_assets
 from pixel_backup.notify import send_discord_notification
 from pixel_backup.schemas import UserConfig
-from pixel_backup.settings import Settings
 from pixel_backup.utils import GIGABYTE, MEGABYTE, generate_destination_path, get_folder_size_bytes, validate_source_dir
 
 logger = logging.getLogger(__name__)

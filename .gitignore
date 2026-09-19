@@ -22,3 +22,4 @@ ENV/
 # Personal files
 configs/
 test_data/
+.dev/

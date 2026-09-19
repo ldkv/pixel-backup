@@ -4,7 +4,7 @@ import signal
 from datetime import datetime, timedelta
 from threading import Event
 
-from pixel_backup.settings import ENV_VARS
+from pixel_backup.env import ENV_VARS
 from pixel_backup.sync import sync_all_users
 from pixel_backup.utils import seconds_until_next_cron
 
