@@ -19,6 +19,15 @@ class UserConfig(ModelBase):
         default=datetime.min.replace(tzinfo=UTC),
         help_text="Only sync files created on or after this date/time; earlier files are skipped.",
     )
+    last_timestamp_ns = models.PositiveBigIntegerField()
+
+    @classmethod
+    def load(cls) -> list[UserConfig]:
+        return list(cls.objects.all())
+
+    def update_timestamp(self, new_timestamp_ns: int) -> None:
+        self.last_timestamp_ns = new_timestamp_ns
+        self.save(update_fields="last_timestamp_ns")
 
 
 class Batch(ModelBase):

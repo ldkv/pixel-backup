@@ -3,10 +3,10 @@ import os
 import time
 from pathlib import Path
 
+from history.models import UserConfig
 from pixel_backup.env import Settings
 from pixel_backup.local_disk import fetch_local_assets
 from pixel_backup.notify import send_discord_notification
-from pixel_backup.schemas import UserConfig
 from pixel_backup.utils import GIGABYTE, MEGABYTE, generate_destination_path, get_folder_size_bytes, validate_source_dir
 
 logger = logging.getLogger(__name__)
@@ -20,10 +20,10 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
     settings.syncthing_dir.mkdir(parents=True, exist_ok=True)
     current_size_bytes = get_folder_size_bytes(settings.syncthing_dir)
     remaining_bytes = int((settings.upper_limit_gb * GIGABYTE) - current_size_bytes)
-    users = UserConfig.load(path=settings.user_configs, generate_default=False)
+    users = UserConfig.load()
     total_files = 0
     total_bytes = 0
-    for user in users.users:
+    for user in users:
         if remaining_bytes <= 0:
             message = f"Reached upper limit of {settings.upper_limit_gb}GB. Please free up space on your Pixel."
             logger.info(message)
@@ -64,7 +64,6 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
 
         if not dry_run:
             user.update_timestamp(last_timestamp_ns)
-            users.save()
 
     elapsed = time.monotonic() - start_time
     message = f"Sync complete: {total_files} files, {total_bytes / MEGABYTE:.2f}MB in {elapsed:.1f}s."
