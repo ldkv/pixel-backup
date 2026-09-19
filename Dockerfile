@@ -1,4 +1,4 @@
-FROM python:3.14-alpine AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /app
 
@@ -7,23 +7,23 @@ ENV UV_PYTHON_DOWNLOADS=0 \
     UV_LINK_MODE=copy \
     UV_LOCKED=1
 
-COPY src src
-
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
     uv sync --no-dev
 
-FROM python:3.14-alpine
+FROM python:3.14-slim
 
 WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/src /app/src
+COPY manage.py .
+COPY pixel_backup pixel_backup
+COPY history history
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 ENTRYPOINT []
 
-CMD ["pixel-backup", "--permanent"]
+CMD ["python", "manage.py", "runbolt", "--host", "0.0.0.0", "--port", "8000"]
