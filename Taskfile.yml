@@ -1,5 +1,12 @@
 version: "3"
 
+dotenv:
+  - .env
+  - .env.example
+
+vars:
+  DJANGO_MANAGE: uv run python manage.py
+
 tasks:
   default: task help
 
@@ -108,3 +115,21 @@ tasks:
         git commit -m "chore: bump version to $NEW_VERSION"
         git push --set-upstream origin "$BRANCH_NAME"
         gh pr create --title "chore: bump version to $NEW_VERSION" --body "Automated version bump via task." --base main
+
+  ### Django commands
+  migrations:
+    desc: Generate Django migrations
+    cmds:
+      - "{{.DJANGO_MANAGE}} makemigrations"
+
+  migrate:
+    desc: Apply Django migrations
+    cmds:
+      - "{{.DJANGO_MANAGE}} migrate{{if .CLI_ARGS}} {{.CLI_ARGS}}{{end}}"
+
+  sync:
+    desc: "Execute file sync once, e.g. 'task sync dry_run=true'"
+    vars:
+      DRY_RUN_FLAG: "{{if .dry_run}}--dry-run{{end}}"
+    cmds:
+      - "{{.DJANGO_MANAGE}} sync_once {{.DRY_RUN_FLAG}}"

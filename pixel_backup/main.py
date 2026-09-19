@@ -8,7 +8,7 @@ from pixel_backup.utils import seconds_until_next_cron
 
 logger = logging.getLogger(__name__)
 
-run_event = asyncio.Event()
+stop_event = asyncio.Event()
 
 POLLING_INTERVAL_SECONDS = 5
 
@@ -28,7 +28,7 @@ async def run_daemon() -> None:
     backoff_seconds = 0
     logger.info("Executing continuous sync...")
     while True:
-        if not run_event.is_set():
+        if stop_event.is_set():
             await asyncio.sleep(POLLING_INTERVAL_SECONDS)
             continue
 
