@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pixel_backup.schemas import User, UserConfig
+from pixel_backup.schemas import User, UserConfig, UserStateConfig
 
 
 def test_load_from_existing_file(tmp_path: Path):
@@ -90,4 +90,33 @@ def test_user_defaults():
     assert user.username == "defaultuser"
     assert user.source_dir == Path("defaultuser")
     assert user.asset_created_after == datetime(1970, 1, 1, tzinfo=UTC)
-    assert user.last_timestamp_ns == 0
+
+
+def test_user_state_config_default(tmp_path: Path):
+    state_file = tmp_path / "users_state.json"
+    state = UserStateConfig.load(path=state_file, generate_default=True)
+    assert state.state == {}
+
+
+def test_user_state_config_roundtrip(tmp_path: Path):
+    state_file = tmp_path / "users_state.json"
+    original = UserStateConfig(state={"alice": 1_000_000, "bob": 2_000_000})
+    original.save(state_file)
+
+    loaded = UserStateConfig.load(path=state_file)
+    assert loaded.state == {"alice": 1_000_000, "bob": 2_000_000}
+
+
+def test_user_state_config_effective_timestamp():
+    user = User(username="alice", source_dir=Path("alice"), asset_created_after=datetime(2024, 1, 1, tzinfo=UTC))
+    state = UserStateConfig(state={})
+
+    # No state entry: falls back to asset_created_after_ns
+    effective = max(state.state.get("alice", 0), user.asset_created_after_ns)
+    assert effective == user.asset_created_after_ns
+
+    # State entry more recent: uses state
+    newer_ts = user.asset_created_after_ns + 1_000_000
+    state.state["alice"] = newer_ts
+    effective = max(state.state.get("alice", 0), user.asset_created_after_ns)
+    assert effective == newer_ts

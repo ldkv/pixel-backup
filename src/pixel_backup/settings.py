@@ -1,25 +1,32 @@
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pixel_backup.env import ENV_VARS
 
+ENV_VARS.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        str_strip_whitespace=True,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-    pytest_version: str = ""
-    user_configs: Path = Path("./configs/users.json")
-    syncthing_dir: Path = Path("/immich/syncthing")
-    upper_limit_gb: float = 19.0
-    cron_schedule: str = "0 0 * * *"
-    timezone: ZoneInfo = ZoneInfo("UTC")
-    min_sleep_seconds: int = 60
-    discord_webhook_url: str = ""
+SECRET_KEY = "django-insecure-pixel-backup"  # nosec: no user-facing web app, LAN/local tool only
+DEBUG = False
+ALLOWED_HOSTS = ["*"]
+
+ROOT_URLCONF = "pixel_backup.urls"
+
+INSTALLED_APPS = [
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
+    "django_bolt",
+    "history",
+]
 
 
-ENV_VARS = Settings()
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ENV_VARS.db_path,
+    }
+}
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+USE_TZ = True
+TIME_ZONE = "UTC"
