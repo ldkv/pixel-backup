@@ -6,15 +6,19 @@ from django.core.management import call_command
 from django_bolt import BoltAPI
 
 from history.models import Batch, SyncedFile
+from pixel_backup.main import run_daemon
 
 
 @contextlib.asynccontextmanager
 async def lifespan(_api: BoltAPI) -> AsyncGenerator[None, Any]:
     await asyncio.to_thread(call_command, "migrate", verbosity=0)
+    daemon_task = asyncio.create_task(run_daemon())
     try:
         yield
     finally:
-        pass
+        daemon_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await daemon_task
 
 
 api = BoltAPI(lifespan=lifespan)
