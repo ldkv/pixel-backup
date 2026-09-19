@@ -6,7 +6,7 @@ from pixel_backup.local_disk import fetch_local_assets, is_media_file
 
 
 class TestIsMediaFile:
-    def test_valid_media_files(self, tmp_path: Path):
+    def test_valid_media_files(self, tmp_path: Path) -> None:
         media_files = [
             "photo.jpg",
             "photo.JPG",
@@ -28,7 +28,7 @@ class TestIsMediaFile:
             file_path.touch()
             assert is_media_file(file_path.name), f"{filename} should be recognized as media file"
 
-    def test_ignored_extensions(self, tmp_path: Path):
+    def test_ignored_extensions(self, tmp_path: Path) -> None:
         ignored_files = [
             "metadata.xmp",
             "metadata.XMP",
@@ -51,7 +51,7 @@ class TestIsMediaFile:
 
 
 class TestFetchLocalAssets:
-    def test_fetch_from_valid_user_directory(self, tmp_path: Path):
+    def test_fetch_from_valid_user_directory(self, tmp_path: Path) -> None:
         user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 
@@ -75,7 +75,7 @@ class TestFetchLocalAssets:
         assert file1 in paths
         assert file2 in paths
 
-    def test_fetch_with_timestamp_filter(self, tmp_path: Path):
+    def test_fetch_with_timestamp_filter(self, tmp_path: Path) -> None:
         user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 
@@ -98,7 +98,7 @@ class TestFetchLocalAssets:
         assert len(assets) == 1
         assert assets[0][0] == new_file
 
-    def test_user_path_is_file_not_directory(self, tmp_path: Path):
+    def test_user_path_is_file_not_directory(self, tmp_path: Path) -> None:
         # Create a file instead of directory
         user_file = tmp_path / "testuser"
         user_file.write_text("not a directory")
@@ -107,7 +107,7 @@ class TestFetchLocalAssets:
 
         assert assets == []
 
-    def test_nested_directory_structure(self, tmp_path: Path):
+    def test_nested_directory_structure(self, tmp_path: Path) -> None:
         user_dir = tmp_path / "testuser"
         nested_dir = user_dir / "2024" / "01" / "photos"
         nested_dir.mkdir(parents=True)
@@ -129,7 +129,7 @@ class TestFetchLocalAssets:
         assert mid_file in paths
         assert deep_file in paths
 
-    def test_ignored_files_not_included(self, tmp_path: Path):
+    def test_ignored_files_not_included(self, tmp_path: Path) -> None:
         user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 
@@ -158,7 +158,7 @@ class TestFetchLocalAssets:
         assert ignored2 not in paths
         assert ignored3 not in paths
 
-    def test_return_tuple_structure(self, tmp_path: Path):
+    def test_return_tuple_structure(self, tmp_path: Path) -> None:
         user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
 

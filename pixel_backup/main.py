@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 shutdown_event = Event()
 
 
-def handle_signal(signum: int, _frame: object):
+def handle_signal(signum: int, _frame: object) -> None:
     sig_name = signal.Signals(signum).name
     logger.info(f"Received {sig_name}. Shutting down gracefully...")
     shutdown_event.set()
 
 
-def configure_logging():
+def configure_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="[%(asctime)s] %(levelname)s: %(message)s",
@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def sync_loop():
+def sync_loop() -> None:
     now = datetime.now(ENV_VARS.timezone)
     sleep_secs = seconds_until_next_cron(ENV_VARS.cron_schedule, now, ENV_VARS.min_sleep_seconds)
     next_sync_time = now + timedelta(seconds=sleep_secs)
@@ -59,7 +59,7 @@ def sync_loop():
     sync_all_users(ENV_VARS)
 
 
-def main():
+def main() -> None:
     configure_logging()
     args = parse_args()
     if args.dry_run:

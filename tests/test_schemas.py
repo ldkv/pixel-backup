@@ -7,7 +7,7 @@ import pytest
 from pixel_backup.schemas import User, UserConfig
 
 
-def test_load_from_existing_file(tmp_path: Path):
+def test_load_from_existing_file(tmp_path: Path) -> None:
     users_file = tmp_path / "users.json"
     test_data = {
         "users": [
@@ -26,14 +26,14 @@ def test_load_from_existing_file(tmp_path: Path):
         assert user.asset_created_after == datetime(2024, 1, 1, tzinfo=UTC)
 
 
-def test_load_from_nonexistent_file(tmp_path: Path):
+def test_load_from_nonexistent_file(tmp_path: Path) -> None:
     nonexistent_file = tmp_path / "nonexistent.json"
 
     with pytest.raises(FileNotFoundError, match="Config file not found"):
         UserConfig.load(path=nonexistent_file, generate_default=False)
 
 
-def test_save_to_file(tmp_path: Path):
+def test_save_to_file(tmp_path: Path) -> None:
     users_file = tmp_path / "users.json"
     user_sync = UserConfig(
         users=[
@@ -52,7 +52,7 @@ def test_save_to_file(tmp_path: Path):
     assert saved_data["users"][0]["asset_created_after"] == "2023-06-15T10:30:00Z"
 
 
-def test_save_and_load_roundtrip(tmp_path: Path):
+def test_save_and_load_roundtrip(tmp_path: Path) -> None:
     users_file = tmp_path / "users.json"
     original = UserConfig(
         users=[
@@ -75,7 +75,7 @@ def test_save_and_load_roundtrip(tmp_path: Path):
     assert loaded.users[1].asset_created_after == datetime(2022, 12, 1, tzinfo=UTC)
 
 
-def test_empty_users_list(tmp_path: Path):
+def test_empty_users_list(tmp_path: Path) -> None:
     users_file = tmp_path / "users.json"
     user_sync = UserConfig(users=[])
 
@@ -85,7 +85,7 @@ def test_empty_users_list(tmp_path: Path):
     assert len(loaded.users) == 0
 
 
-def test_user_defaults():
+def test_user_defaults() -> None:
     user = User(username="defaultuser", source_dir=Path("defaultuser"))
     assert user.username == "defaultuser"
     assert user.source_dir == Path("defaultuser")
