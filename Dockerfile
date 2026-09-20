@@ -1,4 +1,8 @@
-FROM python:3.14-slim AS builder
+ARG PYTHON_IMAGE=3.14.7-slim
+
+FROM ghcr.io/astral-sh/uv:0.12.7 AS uv-base
+
+FROM python:${PYTHON_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -10,10 +14,10 @@ ENV UV_PYTHON_DOWNLOADS=0 \
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
+    --mount=from=uv-base,source=/uv,target=/bin/uv \
     uv sync --no-dev
 
-FROM python:3.14-slim
+FROM python:${PYTHON_IMAGE} AS final
 
 WORKDIR /app
 
@@ -26,4 +30,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 ENTRYPOINT []
 
-CMD ["python", "manage.py", "runbolt", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "manage.py", "runbolt", "--processes", "1"]

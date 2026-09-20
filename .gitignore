@@ -20,6 +20,5 @@ ENV/
 .vscode/
 
 # Personal files
-configs/
-test_data/
+docker_data/
 .dev/

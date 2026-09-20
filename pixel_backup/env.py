@@ -2,6 +2,7 @@ from functools import cached_property
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DB_BULK_SIZE = 400
@@ -20,8 +21,9 @@ class Settings(BaseSettings):
     )
 
     pytest_version: str = ""
-    data_dir: Path = Path("./configs")
-    syncthing_dir: Path = Path("/immich/syncthing")
+    data_dir: Path = Path("./data")
+    syncthing_dir: Path
+    admin_password: SecretStr = SecretStr("admin")
     phone_limit_gb: float = 19.0
     stop_threshold_mb: int = 5
     cron_schedule: str = "0 0 * * *"
@@ -39,3 +41,4 @@ class Settings(BaseSettings):
 
 
 ENV_VARS = Settings()
+ENV_VARS.data_dir.mkdir(parents=True, exist_ok=True)
