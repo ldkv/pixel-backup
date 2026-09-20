@@ -4,6 +4,8 @@ from zoneinfo import ZoneInfo
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DB_BULK_SIZE = 400
+DEFAULT_BATCHES_CUTOFF = 7
 MEGABYTE = 1024**2
 GIGABYTE = MEGABYTE * 1024
 NANOSECONDS = 1_000_000_000
@@ -26,10 +28,6 @@ class Settings(BaseSettings):
     timezone: ZoneInfo = ZoneInfo("UTC")
     min_sleep_seconds: int = 60
     discord_webhook_url: str = ""
-
-    @property
-    def user_configs(self) -> Path:
-        return self.data_dir / "users.json"
 
     @property
     def db_path(self) -> Path:

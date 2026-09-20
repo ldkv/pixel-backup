@@ -5,7 +5,7 @@ dotenv:
   - .env.example
 
 vars:
-  DJANGO_MANAGE: uv run python manage.py
+  DJANGO_MANAGE: uv run manage.py
 
 tasks:
   default: task help
@@ -133,3 +133,8 @@ tasks:
       DRY_RUN_FLAG: "{{if .dry_run}}--dry-run{{end}}"
     cmds:
       - "{{.DJANGO_MANAGE}} sync_once {{.DRY_RUN_FLAG}}"
+
+  run:
+    desc: "Launch the service"
+    cmds:
+      - "{{.DJANGO_MANAGE}} runbolt --processes 1"

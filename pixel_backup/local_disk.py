@@ -18,7 +18,11 @@ IGNORED_EXTENSIONS = {
 }
 
 
-def fetch_local_assets(source_dir: Path, last_timestamp_ns: int) -> list[tuple[Path, int, int]]:
+def fetch_local_assets(
+    source_dir: Path,
+    last_timestamp_ns: int,
+    already_synced_paths: set[str],
+) -> list[tuple[Path, int, int]]:
     if not source_dir.is_dir():
         logger.error(f"{source_dir=} does not exist or is not a directory.")
         return []
@@ -32,6 +36,9 @@ def fetch_local_assets(source_dir: Path, last_timestamp_ns: int) -> list[tuple[P
             for entry in it:
                 if entry.is_dir(follow_symlinks=False):
                     stack.append(entry.path)
+                    continue
+
+                if entry.path in already_synced_paths:
                     continue
 
                 info = entry.stat()
