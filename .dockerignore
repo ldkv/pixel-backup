@@ -23,8 +23,7 @@ ENV/
 .dev/
 .github/
 tests/
-config/
-data/
+docker_data/
 LICENSE
 README.md
 docker-compose.yml

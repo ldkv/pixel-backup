@@ -3,7 +3,7 @@ name = "pixel-backup"
 version = "0.1.0"
 description = "Automatically backup local media library to Google Pixel via Syncthing."
 authors = [{ name = "Vu LE", email = "ledkvu@gmail.com" }]
-requires-python = ">=3.14"
+requires-python = "==3.14.7"
 dependencies = [
     "croniter==6.2.4",
     "django-bolt==0.11.1",

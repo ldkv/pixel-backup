@@ -3,14 +3,16 @@ services:
     build: .
     container_name: pixel_backup
     restart: unless-stopped
+    ports:
+      - ${API_PORT:-8000}:8000
     env_file:
       - path: .env
         required: false
     environment:
-      - USER_CONFIGS=/app/configs/users.json
+      - DATA_DIR=/data # Must match the mount target below, not overridable via .env
     volumes:
-      - ${DATA_ROOT:-/immich}:${DATA_ROOT:-/immich} # Must be parent of syncthing volume
-      - ./configs:/app/configs
+      - ${DATA_ROOT}:${DATA_ROOT} # Must be parent of syncthing dir - DO NOT mount syncthing dir separately
+      - ${LOCAL_DATA_DIR}:/data
       - /etc/localtime:/etc/localtime:ro
 
   syncthing:
@@ -18,7 +20,7 @@ services:
     container_name: syncthing
     restart: unless-stopped
     volumes:
-      - ${SYNCTHING_DIR:-/immich/syncthing}:/syncthing
+      - ${SYNCTHING_DIR:-/mnt/media/syncthing}:/syncthing
       - syncthing_config:/config
       - /etc/localtime:/etc/localtime:ro
     ports:
