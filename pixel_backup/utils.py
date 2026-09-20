@@ -4,8 +4,7 @@ from pathlib import Path
 
 from croniter import croniter
 
-MEGABYTE = 1024**2
-GIGABYTE = MEGABYTE * 1024
+from pixel_backup.env import GIGABYTE
 
 
 def seconds_until_next_cron(cron_schedule: str, current_time: datetime, min_sleep_seconds: int) -> float:
@@ -26,6 +25,11 @@ def validate_source_dir(source_dir: Path, dest_dir: Path) -> None:
 
 def get_folder_size_bytes(path: Path) -> int:
     return sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink())
+
+
+def get_remaining_quota_bytes(path: Path, limit_gb: float) -> int:
+    current_size_bytes = get_folder_size_bytes(path)
+    return int((limit_gb * GIGABYTE) - current_size_bytes)
 
 
 def consistent_dir(path: Path) -> str:

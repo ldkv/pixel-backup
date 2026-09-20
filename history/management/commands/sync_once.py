@@ -21,6 +21,6 @@ class Command(BaseCommand):
     def handle(self, *args: object, **options: object) -> None:
         dry_run = bool(options["dry_run"])
         if dry_run:
-            logger.info("DRY RUN mode enabled. No files will be linked.")
+            logger.info("DRY RUN mode enabled. No assets will be linked.")
 
         sync_all_users(ENV_VARS, dry_run=dry_run)

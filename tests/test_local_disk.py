@@ -2,6 +2,7 @@ import os
 import time
 from pathlib import Path
 
+from pixel_backup.env import NANOSECONDS
 from pixel_backup.local_disk import fetch_local_assets, is_media_file
 
 
@@ -91,7 +92,7 @@ class TestFetchLocalAssets:
         new_file.touch()  # Current time
 
         # Fetch only recent assets
-        cutoff_time = int((time.time() - 5000) * 1_000_000_000)  # Convert to nanoseconds
+        cutoff_time = int((time.time() - 5000) * NANOSECONDS)  # Convert to nanoseconds
         assets = fetch_local_assets(user_dir, cutoff_time)
 
         # Should only get the new file
@@ -175,4 +176,4 @@ class TestFetchLocalAssets:
 
         assert path == file_path
         assert size == 1024
-        assert timestamp / 1_000_000_000 == current_time
+        assert timestamp / NANOSECONDS == current_time

@@ -128,7 +128,7 @@ tasks:
       - "{{.DJANGO_MANAGE}} migrate{{if .CLI_ARGS}} {{.CLI_ARGS}}{{end}}"
 
   sync:
-    desc: "Execute file sync once, e.g. 'task sync dry_run=true'"
+    desc: "Execute sync once, e.g. 'task sync dry_run=true'"
     vars:
       DRY_RUN_FLAG: "{{if .dry_run}}--dry-run{{end}}"
     cmds:

@@ -5,7 +5,7 @@ from typing import ClassVar, Self
 
 from pydantic import BaseModel, field_validator
 
-from pixel_backup.env import ENV_VARS
+from pixel_backup.env import ENV_VARS, NANOSECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +52,11 @@ class User(BaseModel):
         return dt.astimezone(UTC)
 
     def model_post_init(self, _) -> None:  # noqa: ANN001
-        self.last_timestamp_ns = self.last_timestamp_ns or int(self.asset_created_after.timestamp() * 1_000_000_000)
+        self.last_timestamp_ns = self.last_timestamp_ns or int(self.asset_created_after.timestamp() * NANOSECONDS)
 
     def update_timestamp(self, new_timestamp_ns: int) -> None:
         self.last_timestamp_ns = new_timestamp_ns
-        self.asset_created_after = datetime.fromtimestamp(new_timestamp_ns / 1_000_000_000, tz=UTC)
+        self.asset_created_after = datetime.fromtimestamp(new_timestamp_ns / NANOSECONDS, tz=UTC)
 
 
 class UserConfig(ConfigBase):

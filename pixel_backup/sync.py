@@ -3,11 +3,11 @@ import os
 import time
 from pathlib import Path
 
-from pixel_backup.env import Settings
+from pixel_backup.env import MEGABYTE, Settings
 from pixel_backup.local_disk import fetch_local_assets
 from pixel_backup.notify import send_discord_notification
 from pixel_backup.schemas import UserConfig
-from pixel_backup.utils import GIGABYTE, MEGABYTE, generate_destination_path, get_folder_size_bytes, validate_source_dir
+from pixel_backup.utils import generate_destination_path, get_remaining_quota_bytes, validate_source_dir
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +18,13 @@ RETRY_DELAY_SECONDS = 0.5
 def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
     start_time = time.monotonic()
     settings.syncthing_dir.mkdir(parents=True, exist_ok=True)
-    current_size_bytes = get_folder_size_bytes(settings.syncthing_dir)
-    remaining_bytes = int((settings.upper_limit_gb * GIGABYTE) - current_size_bytes)
+    remaining_bytes = get_remaining_quota_bytes(settings.syncthing_dir, settings.phone_limit_gb)
     users = UserConfig.load(path=settings.user_configs, generate_default=False)
     total_files = 0
     total_bytes = 0
     for user in users.users:
-        if remaining_bytes <= 0:
-            message = f"Reached upper limit of {settings.upper_limit_gb}GB. Please free up space on your Pixel."
+        if remaining_bytes <= settings.stop_threshold_bytes:
+            message = f"Reached upper limit of {settings.phone_limit_gb}GB / {remaining_bytes=}. Please free up space on your phone."
             logger.info(message)
             if not dry_run:
                 send_discord_notification(message)
@@ -33,7 +32,7 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
 
         logger.info(f"Syncing user {user.username} with quota of {remaining_bytes / MEGABYTE:.2f}MB...")
         try:
-            added_bytes, added_files, last_timestamp_ns, quota_exhausted = sync_per_source(
+            added_bytes, added_files, last_timestamp_ns = sync_per_source(
                 settings.syncthing_dir,
                 user.username,
                 user.source_dir,
@@ -44,13 +43,6 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
         except Exception:
             logger.exception(f"Failed to sync for user {user.username}. Skipping.")
             continue
-
-        if quota_exhausted:
-            message = f"Quota exhausted. Reached upper limit of {settings.upper_limit_gb}GB. Please free up space on your Pixel."
-            logger.info(message)
-            if not dry_run:
-                send_discord_notification(message)
-            break
 
         if not added_bytes:
             logger.info(f"No new assets for user {user.username}.")
@@ -80,22 +72,25 @@ def sync_per_source(  # noqa: PLR0913, PLR0917
     last_timestamp_ns: int,
     user_quota_bytes: float,
     dry_run: bool = False,
-) -> tuple[int, list[Path], int, bool]:
+) -> tuple[int, list[Path], int]:
     validate_source_dir(source_dir, dest_dir)
     assets = fetch_local_assets(source_dir, last_timestamp_ns)
     if not assets:
-        return 0, [], last_timestamp_ns, False
+        return 0, [], last_timestamp_ns
 
     added_bytes = 0
     added_files = []
-    quota_exhausted = False
     action = "Previewing" if dry_run else "Generating"
     logger.info(f"Found {len(assets)} new assets for user {username}. {action} links...")
     created_dirs = set()
     dest_user_dir = Path(dest_dir, username)
     for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
         if added_bytes + asset_size > user_quota_bytes:
-            quota_exhausted = True
+            remaining_bytes = user_quota_bytes - added_bytes
+            message = f"Asset size is larger than remaining quota: {asset_path=} / {asset_size=} / {remaining_bytes=}"
+            logger.warning(message)
+            if not dry_run:
+                send_discord_notification(message)
             break
 
         dest = generate_destination_path(dest_user_dir, asset_path)
@@ -108,7 +103,8 @@ def sync_per_source(  # noqa: PLR0913, PLR0917
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 created_dirs.add(dest.parent)
 
-            link_with_retry(asset_path, dest)
+            if not link_with_retry(asset_path, dest):
+                continue
 
         action = "Would link" if dry_run else "Linked"
         logger.info(f"{action} {asset_path} -> {dest}")
@@ -116,7 +112,7 @@ def sync_per_source(  # noqa: PLR0913, PLR0917
         added_bytes += asset_size
         added_files.append(dest)
 
-    return added_bytes, added_files, last_timestamp_ns, quota_exhausted
+    return added_bytes, added_files, last_timestamp_ns
 
 
 def link_with_retry(src: Path, dest: Path, retries: int = MAX_LINK_RETRIES) -> bool:
