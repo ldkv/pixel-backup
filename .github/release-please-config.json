@@ -3,6 +3,15 @@
   "release-type": "python",
   "skip-changelog": true,
   "include-component-in-tag": false,
+  "changelog-sections": [
+    { "type": "feat", "section": "✨ Features" },
+    { "type": "fix", "section": "🐛 Bug Fixes" },
+    { "type": "perf", "section": "⚡ Performance" },
+    { "type": "refactor", "section": "♻️ Refactoring" },
+    { "type": "docs", "section": "📝 Documentation" },
+    { "type": "chore", "section": "🧹 Chores", "hidden": true },
+    { "type": "test", "section": "✅ Tests", "hidden": true }
+  ],
   "packages": {
     ".": {}
   }
