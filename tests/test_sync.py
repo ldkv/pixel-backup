@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from pixel_backup.env import Settings
+from pixel_backup.env import GIGABYTE, NANOSECONDS, Settings
 from pixel_backup.schemas import User, UserConfig
 from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_source
-from pixel_backup.utils import GIGABYTE, consistent_dir, generate_destination_path
+from pixel_backup.utils import consistent_dir, generate_destination_path
 
 
 class TestSyncPerUser:
@@ -28,11 +28,10 @@ class TestSyncPerUser:
         file1.write_text("content1")
         file2.write_text("content2")
 
-        added_bytes, added_files, _, quota_exhausted = sync_per_source(*self.fixed_args, 0, 10000.0)
+        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
 
         # Verify files were linked
         assert added_bytes == 16
-        assert quota_exhausted is False
         assert added_files[0].parent.name == added_files[1].parent.name == consistent_dir(self.user_dir)
         # Verify they are hard links (same inode on Linux/Windows compatible check)
         assert os.path.samefile(file1, added_files[0])
@@ -40,14 +39,11 @@ class TestSyncPerUser:
 
     def test_sync_no_assets(self) -> None:
         last_timestamp_ns = 0
-        added_bytes, added_files, last_created_at, quota_exhausted = sync_per_source(
-            *self.fixed_args, last_timestamp_ns, 1
-        )
+        added_bytes, added_files, last_created_at = sync_per_source(*self.fixed_args, last_timestamp_ns, 1)
 
         assert added_bytes == 0
         assert added_files == []
         assert last_created_at == last_timestamp_ns
-        assert quota_exhausted is False
 
     def test_sync_skips_existing_destinations(self) -> None:
         # Create source file
@@ -59,13 +55,33 @@ class TestSyncPerUser:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text("existing content")
 
-        added_bytes, added_files, _, quota_exhausted = sync_per_source(*self.fixed_args, 0, 10000.0)
+        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
 
         # No bytes should be added since file was skipped
         assert added_bytes == 0
         assert added_files == []
-        assert quota_exhausted is False
         assert dest_path.read_text() == "existing content"
+
+    def test_sync_skips_asset_when_link_fails(self) -> None:
+        file1 = self.user_dir / "photo1.jpg"
+        file2 = self.user_dir / "photo2.jpg"
+        file1.write_text("content1")
+        file2.write_text("content22")
+        now_ns = 1_700_000_000_000_000_000
+        os.utime(file1, ns=(now_ns, now_ns))
+        os.utime(file2, ns=(now_ns + NANOSECONDS, now_ns + NANOSECONDS))
+
+        with (
+            patch("pixel_backup.sync.link_with_retry", side_effect=[False, True]),
+            patch("pixel_backup.sync.time.sleep"),
+        ):
+            added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
+
+        # Only the successfully-linked asset should be counted; the failed one is skipped.
+        assert added_bytes == len("content22")
+        assert added_files == [
+            generate_destination_path(self.syncthing_dir / self.username, file2),
+        ]
 
 
 class TestDryRun:
@@ -82,7 +98,7 @@ class TestDryRun:
         file1 = self.user_dir / "photo1.jpg"
         file1.write_text("content1")
 
-        added_bytes, added_files, _, _ = sync_per_source(*self.fixed_args, 0, 10000.0, dry_run=True)
+        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0, dry_run=True)
 
         assert added_bytes > 0
         assert len(added_files) == 1
@@ -103,7 +119,7 @@ class TestDryRun:
 
         with patch("pixel_backup.sync.UserConfig.load") as mock_load:
             mock_load.return_value = user_config
-            settings = Settings(syncthing_dir=self.syncthing_dir, upper_limit_gb=1.0 / GIGABYTE)
+            settings = Settings(syncthing_dir=self.syncthing_dir, phone_limit_gb=1.0 / GIGABYTE, stop_threshold_mb=0)
             sync_all_users(settings, dry_run=True)
 
         assert user_config.users[0].last_timestamp_ns == original_ts
@@ -186,7 +202,8 @@ class TestSyncAllUsers:
 
             settings = Settings(
                 syncthing_dir=syncthing_dir,
-                upper_limit_gb=10 / GIGABYTE,  # Only enough for ~2 users
+                phone_limit_gb=10 / GIGABYTE,  # Only enough for ~2 users
+                stop_threshold_mb=0,
             )
 
             sync_all_users(settings)
@@ -199,9 +216,7 @@ class TestSyncAllUsers:
             assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 2 files")
 
     @patch("pixel_backup.sync.send_discord_notification")
-    def test_sync_notifies_when_remaining_quota_too_small_for_next_asset(
-        self, mock_notify: Mock, tmp_path: Path
-    ) -> None:
+    def test_sync_stops_batch_when_asset_exceeds_remaining_quota(self, mock_notify: Mock, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
         syncthing_dir.mkdir()
         # Pre-existing content leaves just 2 bytes of quota, not enough for the 10-byte photo below.
@@ -223,13 +238,13 @@ class TestSyncAllUsers:
         with patch(self.user_config_mock_path) as mock_load:
             mock_load.return_value = user_config
 
-            settings = Settings(syncthing_dir=syncthing_dir, upper_limit_gb=10 / GIGABYTE)
+            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=10 / GIGABYTE, stop_threshold_mb=0)
 
             sync_all_users(settings)
 
             assert not (syncthing_dir / "testuser").exists()
             assert mock_notify.call_count == 2
-            assert mock_notify.call_args_list[0].args[0].startswith("Quota exhausted. Reached upper limit of")
+            assert mock_notify.call_args_list[0].args[0].startswith("Asset size is larger than remaining quota")
             assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 0 files")
 
     def test_dry_run_does_not_notify(self, tmp_path: Path) -> None:
@@ -255,7 +270,7 @@ class TestSyncAllUsers:
             patch("pixel_backup.sync.send_discord_notification") as mock_notify,
         ):
             mock_load.return_value = user_config
-            settings = Settings(syncthing_dir=syncthing_dir, upper_limit_gb=1 / GIGABYTE)
+            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1 / GIGABYTE)
             sync_all_users(settings, dry_run=True)
 
         mock_notify.assert_not_called()
@@ -279,7 +294,7 @@ class TestSyncAllUsers:
         with patch(self.user_config_mock_path) as mock_load:
             mock_load.return_value = user_config
 
-            settings = Settings(syncthing_dir=syncthing_dir, upper_limit_gb=1.0 / GIGABYTE)
+            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1.0 / GIGABYTE)
 
             sync_all_users(settings)
 

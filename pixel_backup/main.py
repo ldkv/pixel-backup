@@ -25,6 +25,8 @@ async def sync_loop() -> None:
 
 
 async def run_daemon() -> None:
+    """Continuously sync on the configured cron schedule until cancelled."""
+
     backoff_seconds = 0
     logger.info("Executing continuous sync...")
     while True:
