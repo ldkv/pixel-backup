@@ -1,6 +1,6 @@
 services:
   pixel-backup:
-    build: .
+    image: ghcr.io/ldkv/pixel-backup:${PIXEL_BACKUP_VERSION:-latest}
     container_name: pixel_backup
     restart: unless-stopped
     ports:
