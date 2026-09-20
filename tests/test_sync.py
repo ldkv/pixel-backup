@@ -1,14 +1,15 @@
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
+from history.models import Batch, SyncedAsset, UserConfig
 from pixel_backup.env import GIGABYTE, NANOSECONDS, Settings
-from pixel_backup.schemas import User, UserConfig
-from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_source
-from pixel_backup.utils import consistent_dir, generate_destination_path
+from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_user
+from pixel_backup.utils import consistent_dir
+
+pytestmark = pytest.mark.django_db
 
 
 class TestSyncPerUser:
@@ -19,7 +20,7 @@ class TestSyncPerUser:
         self.user_dir = tmp_path / self.username
         self.syncthing_dir.mkdir(parents=True, exist_ok=True)
         self.user_dir.mkdir(parents=True, exist_ok=True)
-        self.fixed_args = (self.syncthing_dir, self.username, self.user_dir)
+        self.user = UserConfig.objects.create(username=self.username, source_dir=str(self.user_dir), sync_order=1)
 
     def test_sync_basic_assets(self) -> None:
         # Create test files
@@ -28,39 +29,44 @@ class TestSyncPerUser:
         file1.write_text("content1")
         file2.write_text("content2")
 
-        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
+        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0)
 
         # Verify files were linked
-        assert added_bytes == 16
-        assert added_files[0].parent.name == added_files[1].parent.name == consistent_dir(self.user_dir)
-        # Verify they are hard links (same inode on Linux/Windows compatible check)
-        assert os.path.samefile(file1, added_files[0])
-        assert os.path.samefile(file2, added_files[1])
+        assert new_batch.total_bytes == 16
+        assert new_batch.files_count == 2
+        assert {asset.source_path for asset in new_assets} == {file1.as_posix(), file2.as_posix()}
+        for asset in new_assets:
+            dest = Path(asset.dest_path)
+            assert dest.parent.name == consistent_dir(self.user_dir)
+            # Verify they are hard links (same inode on Linux/Windows compatible check)
+            assert os.path.samefile(asset.source_path, dest)
 
     def test_sync_no_assets(self) -> None:
-        last_timestamp_ns = 0
-        added_bytes, added_files, last_created_at = sync_per_source(*self.fixed_args, last_timestamp_ns, 1)
+        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 1)
 
-        assert added_bytes == 0
-        assert added_files == []
-        assert last_created_at == last_timestamp_ns
+        assert new_batch.total_bytes == 0
+        assert new_batch.files_count == 0
+        assert new_assets == []
 
-    def test_sync_skips_existing_destinations(self) -> None:
+    def test_sync_skips_already_synced_source_paths(self) -> None:
         # Create source file
         source_file = self.user_dir / "photo.jpg"
         source_file.write_text("original content")
 
-        # Pre-create destination file
-        dest_path = generate_destination_path(self.syncthing_dir / self.username, source_file)
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_text("existing content")
+        # Mark it as already synced
+        SyncedAsset.objects.create(
+            user_config=self.user,
+            source_path=source_file.as_posix(),
+            dest_path="irrelevant",
+            size_bytes=len("original content"),
+            created_at_ns=0,
+        )
 
-        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
+        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0)
 
-        # No bytes should be added since file was skipped
-        assert added_bytes == 0
-        assert added_files == []
-        assert dest_path.read_text() == "existing content"
+        # No bytes should be added since the source path was already synced
+        assert new_batch.total_bytes == 0
+        assert new_assets == []
 
     def test_sync_skips_asset_when_link_fails(self) -> None:
         file1 = self.user_dir / "photo1.jpg"
@@ -75,13 +81,13 @@ class TestSyncPerUser:
             patch("pixel_backup.sync.link_with_retry", side_effect=[False, True]),
             patch("pixel_backup.sync.time.sleep"),
         ):
-            added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0)
+            new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0)
 
-        # Only the successfully-linked asset should be counted; the failed one is skipped.
-        assert added_bytes == len("content22")
-        assert added_files == [
-            generate_destination_path(self.syncthing_dir / self.username, file2),
-        ]
+        # Only the successfully-linked asset should be recorded; the failed one is not
+        # counted, does not consume quota, and is not marked as synced.
+        assert new_batch.files_count == 1
+        assert new_batch.total_bytes == len("content22")
+        assert {asset.source_path for asset in new_assets} == {file2.as_posix()}
 
 
 class TestDryRun:
@@ -92,37 +98,28 @@ class TestDryRun:
         self.user_dir = tmp_path / self.username
         self.syncthing_dir.mkdir(parents=True, exist_ok=True)
         self.user_dir.mkdir(parents=True, exist_ok=True)
-        self.fixed_args = (self.syncthing_dir, self.username, self.user_dir)
+        self.user = UserConfig.objects.create(username=self.username, source_dir=str(self.user_dir), sync_order=1)
 
     def test_dry_run_does_not_create_links(self) -> None:
         file1 = self.user_dir / "photo1.jpg"
         file1.write_text("content1")
 
-        added_bytes, added_files, _ = sync_per_source(*self.fixed_args, 0, 10000.0, dry_run=True)
+        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0, dry_run=True)
 
-        assert added_bytes > 0
-        assert len(added_files) == 1
-        assert not (self.syncthing_dir / "testuser").exists()
+        assert new_batch.total_bytes > 0
+        assert len(new_assets) == 1
+        assert not (self.syncthing_dir / self.username).exists()
 
-    def test_dry_run_does_not_update_user_config(self) -> None:
+    def test_dry_run_does_not_persist_synced_assets(self) -> None:
         (self.user_dir / "photo.jpg").write_text("content")
-        user_config = UserConfig(
-            users=[
-                User(
-                    username="testuser",
-                    source_dir=self.user_dir,
-                    asset_created_after=datetime(2020, 1, 1, tzinfo=UTC),
-                )
-            ]
-        )
-        original_ts = user_config.users[0].last_timestamp_ns
 
-        with patch("pixel_backup.sync.UserConfig.load") as mock_load:
-            mock_load.return_value = user_config
+        with patch("pixel_backup.sync.UserConfig.load", return_value=[self.user]):
             settings = Settings(syncthing_dir=self.syncthing_dir, phone_limit_gb=1.0 / GIGABYTE, stop_threshold_mb=0)
             sync_all_users(settings, dry_run=True)
 
-        assert user_config.users[0].last_timestamp_ns == original_ts
+        assert SyncedAsset.objects.count() == 0
+        self.user.refresh_from_db()
+        assert self.user.last_timestamp_ns == 0
 
 
 class TestLinkWithRetry:
@@ -179,27 +176,14 @@ class TestSyncAllUsers:
         syncthing_dir = tmp_path / "syncthing"
 
         # Create many users with files
-        user_dirs = []
+        users = []
         for i in range(5):
             source_dir = user_dir / f"user{i}"
             source_dir.mkdir(parents=True)
             (source_dir / "photo.jpg").write_text("X" * 5)
-            user_dirs.append(source_dir)
+            users.append(UserConfig.objects.create(username=f"user{i}", source_dir=str(source_dir), sync_order=i))
 
-        user_config = UserConfig(
-            users=[
-                User(
-                    username=f"user{i}",
-                    source_dir=user_dirs[i],
-                    asset_created_after=datetime(2020, 1, 1, tzinfo=UTC),
-                )
-                for i in range(5)
-            ]
-        )
-
-        with patch(self.user_config_mock_path) as mock_load:
-            mock_load.return_value = user_config
-
+        with patch(self.user_config_mock_path, return_value=users):
             settings = Settings(
                 syncthing_dir=syncthing_dir,
                 phone_limit_gb=10 / GIGABYTE,  # Only enough for ~2 users
@@ -208,12 +192,12 @@ class TestSyncAllUsers:
 
             sync_all_users(settings)
 
-            # Not all users should have files synced due to quota limits
-            synced_users = len(list(syncthing_dir.glob("user*")))
-            assert synced_users == 2
-            assert mock_notify.call_count == 2
-            assert mock_notify.call_args_list[0].args[0].startswith("Reached upper limit of")
-            assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 2 files")
+        # Not all users should have files synced due to quota limits
+        synced_users = len(list(syncthing_dir.glob("user*")))
+        assert synced_users == 2
+        assert mock_notify.call_count == 2
+        assert mock_notify.call_args_list[0].args[0].startswith("Reached upper limit of")
+        assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 2 files")
 
     @patch("pixel_backup.sync.send_discord_notification")
     def test_sync_stops_batch_when_asset_exceeds_remaining_quota(self, mock_notify: Mock, tmp_path: Path) -> None:
@@ -225,27 +209,17 @@ class TestSyncAllUsers:
         user_dir = tmp_path / "testuser"
         user_dir.mkdir()
         (user_dir / "photo.jpg").write_bytes(b"X" * 10)
-        user_config = UserConfig(
-            users=[
-                User(
-                    username="testuser",
-                    source_dir=user_dir,
-                    asset_created_after=datetime(2020, 1, 1, tzinfo=UTC),
-                )
-            ]
-        )
+        user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
 
-        with patch(self.user_config_mock_path) as mock_load:
-            mock_load.return_value = user_config
-
+        with patch(self.user_config_mock_path, return_value=[user]):
             settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=10 / GIGABYTE, stop_threshold_mb=0)
 
             sync_all_users(settings)
 
-            assert not (syncthing_dir / "testuser").exists()
-            assert mock_notify.call_count == 2
-            assert mock_notify.call_args_list[0].args[0].startswith("Asset size is larger than remaining quota")
-            assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 0 files")
+        assert not (syncthing_dir / "testuser").exists()
+        assert mock_notify.call_count == 2
+        assert mock_notify.call_args_list[0].args[0].startswith("Asset size is larger than remaining quota")
+        assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 0 files")
 
     def test_dry_run_does_not_notify(self, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
@@ -255,21 +229,12 @@ class TestSyncAllUsers:
         user_dir = tmp_path / "testuser"
         user_dir.mkdir()
         (user_dir / "photo.jpg").write_text("data")
-        user_config = UserConfig(
-            users=[
-                User(
-                    username="testuser",
-                    source_dir=user_dir,
-                    asset_created_after=datetime(2020, 1, 1, tzinfo=UTC),
-                )
-            ]
-        )
+        user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
 
         with (
-            patch(self.user_config_mock_path) as mock_load,
+            patch(self.user_config_mock_path, return_value=[user]),
             patch("pixel_backup.sync.send_discord_notification") as mock_notify,
         ):
-            mock_load.return_value = user_config
             settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1 / GIGABYTE)
             sync_all_users(settings, dry_run=True)
 
@@ -280,23 +245,77 @@ class TestSyncAllUsers:
         # Create user directory but no files
         user_dir = tmp_path / "testuser"
         user_dir.mkdir(parents=True)
+        user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
 
-        user_config = UserConfig(
-            users=[
-                User(
-                    username="testuser",
-                    source_dir=user_dir,
-                    asset_created_after=datetime(2020, 1, 1, tzinfo=UTC),
-                )
-            ]
-        )
-
-        with patch(self.user_config_mock_path) as mock_load:
-            mock_load.return_value = user_config
-
+        with patch(self.user_config_mock_path, return_value=[user]):
             settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1.0 / GIGABYTE)
 
             sync_all_users(settings)
 
             # No files should be created in syncthing dir
             assert not (syncthing_dir / "testuser").exists()
+
+    def test_sync_persists_batch_and_assets_and_advances_cursor(self, tmp_path: Path) -> None:
+        syncthing_dir = tmp_path / "syncthing"
+        user_dir = tmp_path / "testuser"
+        user_dir.mkdir(parents=True)
+        file1 = user_dir / "photo1.jpg"
+        file2 = user_dir / "photo2.jpg"
+        file1.write_bytes(b"X" * 5)
+        file2.write_bytes(b"X" * 7)
+        user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
+
+        with patch(self.user_config_mock_path, return_value=[user]):
+            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1000 / GIGABYTE, stop_threshold_mb=0)
+            sync_all_users(settings)
+
+        assert Batch.objects.count() == 1
+        batch = Batch.objects.get()
+        assert batch.user_config_id == user.id
+        assert batch.files_count == 2
+        assert batch.total_bytes == 12
+
+        assets = list(SyncedAsset.objects.all())
+        assert len(assets) == 2
+        assert {asset.batch_id for asset in assets} == {batch.id}
+
+        user.refresh_from_db()
+        max_created_at_ns = max(asset.created_at_ns for asset in assets)
+        assert user.last_timestamp_ns == max_created_at_ns
+
+    def test_sync_does_not_advance_cursor_past_asset_skipped_for_quota(self, tmp_path: Path) -> None:
+        syncthing_dir = tmp_path / "syncthing"
+        user_dir = tmp_path / "testuser"
+        user_dir.mkdir(parents=True)
+
+        small_file = user_dir / "small.jpg"
+        large_file = user_dir / "large.jpg"
+        later_file = user_dir / "later.jpg"
+        small_file.write_bytes(b"X" * 3)
+        large_file.write_bytes(b"X" * 100)
+        later_file.write_bytes(b"X" * 3)
+
+        # Force a deterministic mtime order: small (oldest) -> large -> later (newest).
+        now_ns = 1_700_000_000_000_000_000
+        os.utime(small_file, ns=(now_ns, now_ns))
+        os.utime(large_file, ns=(now_ns + NANOSECONDS, now_ns + NANOSECONDS))
+        os.utime(later_file, ns=(now_ns + 2_000_000_000, now_ns + 2_000_000_000))
+
+        user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
+
+        # Quota is only enough for the small file; the large one must be skipped.
+        with patch(self.user_config_mock_path, return_value=[user]):
+            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=3 / GIGABYTE, stop_threshold_mb=0)
+            sync_all_users(settings)
+
+        # Only the small file was synced; the loop stops at the oversized asset.
+        synced_paths = set(SyncedAsset.objects.values_list("source_path", flat=True))
+        assert synced_paths == {small_file.as_posix()}
+
+        user.refresh_from_db()
+        # The cursor must not advance past the skipped large asset's timestamp,
+        # otherwise later.jpg (with a newer mtime) would be permanently missed.
+        small_mtime_ns = small_file.stat().st_mtime_ns
+        large_mtime_ns = large_file.stat().st_mtime_ns
+        assert user.last_timestamp_ns == small_mtime_ns
+        assert user.last_timestamp_ns < large_mtime_ns

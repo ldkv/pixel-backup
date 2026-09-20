@@ -3,10 +3,12 @@ import os
 import time
 from pathlib import Path
 
-from pixel_backup.env import MEGABYTE, Settings
+from django.db import transaction
+
+from history.models import Batch, SyncedAsset, UserConfig
+from pixel_backup.env import DB_BULK_SIZE, MEGABYTE, Settings
 from pixel_backup.local_disk import fetch_local_assets
 from pixel_backup.notify import send_discord_notification
-from pixel_backup.schemas import UserConfig
 from pixel_backup.utils import generate_destination_path, get_remaining_quota_bytes, validate_source_dir
 
 logger = logging.getLogger(__name__)
@@ -19,10 +21,10 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
     start_time = time.monotonic()
     settings.syncthing_dir.mkdir(parents=True, exist_ok=True)
     remaining_bytes = get_remaining_quota_bytes(settings.syncthing_dir, settings.phone_limit_gb)
-    users = UserConfig.load(path=settings.user_configs, generate_default=False)
+    users = UserConfig.load()
     total_files = 0
     total_bytes = 0
-    for user in users.users:
+    for user in users:
         if remaining_bytes <= settings.stop_threshold_bytes:
             message = f"Reached upper limit of {settings.phone_limit_gb}GB / {remaining_bytes=}. Please free up space on your phone."
             logger.info(message)
@@ -32,31 +34,27 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
 
         logger.info(f"Syncing user {user.username} with quota of {remaining_bytes / MEGABYTE:.2f}MB...")
         try:
-            added_bytes, added_files, last_timestamp_ns = sync_per_source(
-                settings.syncthing_dir,
-                user.username,
-                user.source_dir,
-                user.last_timestamp_ns,
-                remaining_bytes,
-                dry_run,
-            )
+            new_batch, new_assets = sync_per_user(settings.syncthing_dir, user, remaining_bytes, dry_run)
         except Exception:
             logger.exception(f"Failed to sync for user {user.username}. Skipping.")
             continue
 
-        if not added_bytes:
+        if not new_assets:
             logger.info(f"No new assets for user {user.username}.")
             continue
 
-        action = "Would add" if dry_run else "Added"
-        logger.info(f"{action} {len(added_files)} files ({added_bytes / MEGABYTE:.2f}MB) for user {user.username}.")
-        remaining_bytes -= added_bytes
-        total_files += len(added_files)
-        total_bytes += added_bytes
+        if dry_run:
+            action = "Would sync"
+        else:
+            action = "Synced"
+            record_batch(new_batch, new_assets)
 
-        if not dry_run:
-            user.update_timestamp(last_timestamp_ns)
-            users.save()
+        logger.info(
+            f"{action} {len(new_assets)} new assets ({new_batch.total_bytes / MEGABYTE:.2f}MB) for {user.username=}."
+        )
+        total_files += new_batch.files_count
+        total_bytes += new_batch.total_bytes
+        remaining_bytes -= new_batch.total_bytes
 
     elapsed = time.monotonic() - start_time
     message = f"Sync complete: {total_files} files, {total_bytes / MEGABYTE:.2f}MB in {elapsed:.1f}s."
@@ -65,28 +63,42 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
         send_discord_notification(message)
 
 
-def sync_per_source(  # noqa: PLR0913, PLR0917
+@transaction.atomic
+def record_batch(new_batch: Batch, new_assets: list[SyncedAsset]) -> None:
+    new_batch.save()
+    max_timestamp_ns = 0
+    for new_asset in new_assets:
+        new_asset.batch_id = new_batch.id
+        max_timestamp_ns = max(max_timestamp_ns, new_asset.created_at_ns)
+
+    SyncedAsset.objects.bulk_create(new_assets, batch_size=DB_BULK_SIZE)
+    new_batch.user_config.update_timestamp(max_timestamp_ns)
+
+
+def sync_per_user(
     dest_dir: Path,
-    username: str,
-    source_dir: Path,
-    last_timestamp_ns: int,
+    user: UserConfig,
     user_quota_bytes: float,
     dry_run: bool = False,
-) -> tuple[int, list[Path], int]:
+) -> tuple[Batch, list[SyncedAsset]]:
+    source_dir = Path(user.source_dir)
     validate_source_dir(source_dir, dest_dir)
-    assets = fetch_local_assets(source_dir, last_timestamp_ns)
-    if not assets:
-        return 0, [], last_timestamp_ns
+    new_batch = Batch(user_config=user)
+    already_synced_paths = SyncedAsset.get_synced_assets(user)
+    local_assets = fetch_local_assets(source_dir, user.cutoff_timestamp_ns, already_synced_paths)
+    if not local_assets:
+        return new_batch, []
 
-    added_bytes = 0
-    added_files = []
+    new_assets = []
     action = "Previewing" if dry_run else "Generating"
-    logger.info(f"Found {len(assets)} new assets for user {username}. {action} links...")
+    logger.info(
+        f"Found {len(local_assets)} new assets for user {user.username}. {action} hard links with {user_quota_bytes=}..."
+    )
     created_dirs = set()
-    dest_user_dir = Path(dest_dir, username)
-    for asset_path, asset_size, asset_created_at_ns in sorted(assets, key=lambda a: a[2]):
-        if added_bytes + asset_size > user_quota_bytes:
-            remaining_bytes = user_quota_bytes - added_bytes
+    dest_user_dir = Path(dest_dir, user.username)
+    for asset_path, asset_size, asset_created_at_ns in sorted(local_assets, key=lambda a: a[2]):
+        if new_batch.total_bytes + asset_size > user_quota_bytes:
+            remaining_bytes = user_quota_bytes - new_batch.total_bytes
             message = f"Asset size is larger than remaining quota: {asset_path=} / {asset_size=} / {remaining_bytes=}"
             logger.warning(message)
             if not dry_run:
@@ -94,10 +106,6 @@ def sync_per_source(  # noqa: PLR0913, PLR0917
             break
 
         dest = generate_destination_path(dest_user_dir, asset_path)
-        if dest.exists():
-            logger.warning(f"Skipping {asset_path=}. Destination already exists: {dest}")
-            continue
-
         if not dry_run:
             if dest.parent not in created_dirs:
                 dest.parent.mkdir(parents=True, exist_ok=True)
@@ -108,14 +116,26 @@ def sync_per_source(  # noqa: PLR0913, PLR0917
 
         action = "Would link" if dry_run else "Linked"
         logger.info(f"{action} {asset_path} -> {dest}")
-        last_timestamp_ns = asset_created_at_ns
-        added_bytes += asset_size
-        added_files.append(dest)
+        new_batch.total_bytes += asset_size
+        new_batch.files_count += 1
+        new_assets.append(
+            SyncedAsset(
+                user_config=user,
+                source_path=asset_path.as_posix(),
+                dest_path=dest.as_posix(),
+                size_bytes=asset_size,
+                created_at_ns=asset_created_at_ns,
+            )
+        )
 
-    return added_bytes, added_files, last_timestamp_ns
+    return new_batch, new_assets
 
 
 def link_with_retry(src: Path, dest: Path, retries: int = MAX_LINK_RETRIES) -> bool:
+    if dest.exists():
+        logger.warning(f"Skipping link {src=}. Destination already exists: {dest=}")
+        return True
+
     for attempt in range(1, retries + 1):
         try:
             os.link(src, dest)

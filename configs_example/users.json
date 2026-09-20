@@ -1,9 +1,0 @@
-{
-    "users": [
-        {
-            "username": "<USERNAME>",
-            "source_dir": "/path/to/source/directory",
-            "asset_created_after": "1970-01-01T00:00:00"
-        }
-    ]
-}

@@ -5,7 +5,7 @@ from typing import Any, AsyncGenerator
 from django.core.management import call_command
 from django_bolt import BoltAPI
 
-from history.models import Batch, SyncedFile
+from history.models import Batch, SyncedAsset
 from pixel_backup.main import run_daemon
 
 
@@ -27,7 +27,7 @@ api = BoltAPI(lifespan=lifespan)
 @api.get("/status")
 async def status() -> dict:
     return {
-        "total_files": await SyncedFile.objects.acount(),
+        "total_assets": await SyncedAsset.objects.acount(),
         "total_batches": await Batch.objects.acount(),
     }
 
