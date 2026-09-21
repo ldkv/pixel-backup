@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django_bolt import BoltAPI
 
 from history.models import Batch, SyncedAsset
-from pixel_backup.main import ENV_VARS, run_daemon
+from pixel_backup.core.daemon import ENV_VARS, run_daemon
 
 logger = logging.getLogger(__name__)
 

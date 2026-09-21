@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from pixel_backup.utils import (
+from pixel_backup.core.utils import (
     consistent_dir,
     generate_destination_path,
     get_folder_size_bytes,

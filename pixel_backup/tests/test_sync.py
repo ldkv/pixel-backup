@@ -5,9 +5,9 @@ from unittest.mock import Mock, patch
 import pytest
 
 from history.models import Batch, SyncedAsset, UserConfig
+from pixel_backup.core.sync import link_with_retry, sync_all_users, sync_per_user
+from pixel_backup.core.utils import consistent_dir
 from pixel_backup.env import GIGABYTE, NANOSECONDS, Settings
-from pixel_backup.sync import link_with_retry, sync_all_users, sync_per_user
-from pixel_backup.utils import consistent_dir
 
 pytestmark = pytest.mark.django_db
 
@@ -78,8 +78,8 @@ class TestSyncPerUser:
         os.utime(file2, ns=(now_ns + NANOSECONDS, now_ns + NANOSECONDS))
 
         with (
-            patch("pixel_backup.sync.link_with_retry", side_effect=[False, True]),
-            patch("pixel_backup.sync.time.sleep"),
+            patch("pixel_backup.core.sync.link_with_retry", side_effect=[False, True]),
+            patch("pixel_backup.core.sync.time.sleep"),
         ):
             new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0)
 
@@ -113,7 +113,7 @@ class TestDryRun:
     def test_dry_run_does_not_persist_synced_assets(self) -> None:
         (self.user_dir / "photo.jpg").write_text("content")
 
-        with patch("pixel_backup.sync.UserConfig.load", return_value=[self.user]):
+        with patch("pixel_backup.core.sync.UserConfig.load", return_value=[self.user]):
             settings = Settings(syncthing_dir=self.syncthing_dir, phone_limit_gb=1.0 / GIGABYTE, stop_threshold_mb=0)
             sync_all_users(settings, dry_run=True)
 
@@ -148,7 +148,10 @@ class TestLinkWithRetry:
                 raise OSError("Transient error")
             original_link(s, d)
 
-        with patch("pixel_backup.sync.os.link", side_effect=flaky_link), patch("pixel_backup.sync.time.sleep"):
+        with (
+            patch("pixel_backup.core.sync.os.link", side_effect=flaky_link),
+            patch("pixel_backup.core.sync.time.sleep"),
+        ):
             assert link_with_retry(src, dest, retries=3) is True
 
         assert call_count == 3
@@ -159,8 +162,8 @@ class TestLinkWithRetry:
         dest = tmp_path / "dest.txt"
 
         with (
-            patch("pixel_backup.sync.os.link", side_effect=OSError("Permanent error")) as mock_link,
-            patch("pixel_backup.sync.time.sleep"),
+            patch("pixel_backup.core.sync.os.link", side_effect=OSError("Permanent error")) as mock_link,
+            patch("pixel_backup.core.sync.time.sleep"),
         ):
             assert link_with_retry(src, dest, retries=3) is False
             assert mock_link.call_count == 3
@@ -168,9 +171,9 @@ class TestLinkWithRetry:
 
 class TestSyncAllUsers:
     def setup_method(self) -> None:
-        self.user_config_mock_path = "pixel_backup.sync.UserConfig.load"
+        self.user_config_mock_path = "pixel_backup.core.sync.UserConfig.load"
 
-    @patch("pixel_backup.sync.send_discord_notification")
+    @patch("pixel_backup.core.sync.send_discord_notification")
     def test_sync_stops_when_quota_exhausted(self, mock_notify: Mock, tmp_path: Path) -> None:
         user_dir = tmp_path / "library"
         syncthing_dir = tmp_path / "syncthing"
@@ -199,7 +202,7 @@ class TestSyncAllUsers:
         assert mock_notify.call_args_list[0].args[0].startswith("Reached upper limit of")
         assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 2 files")
 
-    @patch("pixel_backup.sync.send_discord_notification")
+    @patch("pixel_backup.core.sync.send_discord_notification")
     def test_sync_stops_batch_when_asset_exceeds_remaining_quota(self, mock_notify: Mock, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
         syncthing_dir.mkdir()
@@ -233,7 +236,7 @@ class TestSyncAllUsers:
 
         with (
             patch(self.user_config_mock_path, return_value=[user]),
-            patch("pixel_backup.sync.send_discord_notification") as mock_notify,
+            patch("pixel_backup.core.sync.send_discord_notification") as mock_notify,
         ):
             settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1 / GIGABYTE)
             sync_all_users(settings, dry_run=True)
