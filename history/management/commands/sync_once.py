@@ -2,8 +2,8 @@ import logging
 
 from django.core.management.base import BaseCommand, CommandParser
 
+from pixel_backup.core.sync import sync_all_users
 from pixel_backup.env import ENV_VARS
-from pixel_backup.sync import sync_all_users
 
 logger = logging.getLogger(__name__)
 

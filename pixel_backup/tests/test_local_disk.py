@@ -2,8 +2,8 @@ import os
 import time
 from pathlib import Path
 
+from pixel_backup.core.local_disk import fetch_local_assets, is_media_file
 from pixel_backup.env import NANOSECONDS
-from pixel_backup.local_disk import fetch_local_assets, is_media_file
 
 
 class TestIsMediaFile:
