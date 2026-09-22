@@ -108,4 +108,4 @@ tasks:
   run:
     desc: "Launch the service"
     cmds:
-      - "{{.DJANGO_MANAGE}} runbolt --processes 1"
+      - "{{.DJANGO_MANAGE}} runbolt --dev --processes 1"
