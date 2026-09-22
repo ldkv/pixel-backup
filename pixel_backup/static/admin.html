@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Backup Admin</title>
+<link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+<div class="container">
+  <div>
+    <h1>Pixel Backup Admin</h1>
+    <p class="subtitle">Manage synced users, trigger syncs, and review recent batches.</p>
+  </div>
+
+  <div class="card">
+    <h2>Sync</h2>
+    <div class="sync-row">
+      <button id="sync-btn">Trigger Sync Now</button>
+      <label class="checkbox">
+        <input type="checkbox" id="dry-run-checkbox">
+        Dry run
+      </label>
+      <span id="sync-status" class="status-msg"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>User Configs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Source Dir</th>
+          <th>Sync Order</th>
+          <th>Cutoff</th>
+          <th>Last Synced Ns</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="user-configs-body"></tbody>
+    </table>
+    <form class="add-form" id="add-user-config-form">
+      <div class="field">
+        <label for="uc-username">Username</label>
+        <input id="uc-username" required>
+      </div>
+      <div class="field">
+        <label for="uc-source-dir">Source Dir</label>
+        <input id="uc-source-dir" required>
+      </div>
+      <div class="field">
+        <label for="uc-sync-order">Sync Order</label>
+        <input id="uc-sync-order" type="number" required style="width: 90px;">
+      </div>
+      <button type="submit">Add</button>
+      <span id="add-user-config-status" class="status-msg"></span>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="batches-header">
+      <h2>Batches</h2>
+      <select class="filter-select" id="batches-user-filter">
+        <option value="">All users</option>
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Files</th>
+          <th>Size</th>
+          <th>Synced At</th>
+        </tr>
+      </thead>
+      <tbody id="batches-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/static/admin.js"></script>
+</body>
+</html>
