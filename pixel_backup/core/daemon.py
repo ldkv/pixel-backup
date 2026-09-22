@@ -2,26 +2,29 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
+from history.models import GlobalConfig
 from pixel_backup.core.sync import sync_all_users
 from pixel_backup.core.utils import seconds_until_next_cron
-from pixel_backup.env import ENV_VARS
 
 logger = logging.getLogger(__name__)
 
 stop_event = asyncio.Event()
+sync_lock = asyncio.Lock()
 
 POLLING_INTERVAL_SECONDS = 5
 
 
 async def sync_loop() -> None:
-    now = datetime.now(ENV_VARS.timezone)
-    sleep_secs = seconds_until_next_cron(ENV_VARS.cron_schedule, now, ENV_VARS.min_sleep_seconds)
+    global_config = await GlobalConfig.load()
+    now = datetime.now(global_config.timezone)
+    sleep_secs = seconds_until_next_cron(global_config.cron_schedule, now, global_config.min_sleep_seconds)
     next_sync_time = now + timedelta(seconds=sleep_secs)
 
     logger.info(f"Next sync at {next_sync_time}. Sleeping for {sleep_secs:.0f} seconds...")
     await asyncio.sleep(sleep_secs)
 
-    await asyncio.to_thread(sync_all_users, ENV_VARS)
+    async with sync_lock:
+        await asyncio.to_thread(sync_all_users, global_config)
 
 
 async def run_daemon() -> None:

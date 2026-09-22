@@ -5,10 +5,10 @@ from pathlib import Path
 
 from django.db import transaction
 
-from history.models import Batch, SyncedAsset, UserConfig
+from history.models import Batch, GlobalConfig, SyncedAsset, UserConfig
 from pixel_backup.core.local_disk import fetch_local_assets
 from pixel_backup.core.utils import generate_destination_path, get_remaining_quota_bytes, validate_source_dir
-from pixel_backup.env import DB_BULK_SIZE, MEGABYTE, Settings
+from pixel_backup.env import DB_BULK_SIZE, MEGABYTE
 from pixel_backup.notify import send_discord_notification
 
 logger = logging.getLogger(__name__)
@@ -17,10 +17,11 @@ MAX_LINK_RETRIES = 3
 RETRY_DELAY_SECONDS = 0.5
 
 
-def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
+def sync_all_users(settings: GlobalConfig, dry_run: bool = False) -> None:
     start_time = time.monotonic()
-    settings.syncthing_dir.mkdir(parents=True, exist_ok=True)
-    remaining_bytes = get_remaining_quota_bytes(settings.syncthing_dir, settings.phone_limit_gb)
+    syncthing_dir = Path(settings.syncthing_dir)
+    syncthing_dir.mkdir(parents=True, exist_ok=True)
+    remaining_bytes = get_remaining_quota_bytes(syncthing_dir, settings.phone_limit_gb)
     users = UserConfig.load()
     total_files = 0
     total_bytes = 0
@@ -29,12 +30,12 @@ def sync_all_users(settings: Settings, dry_run: bool = False) -> None:
             message = f"Reached upper limit of {settings.phone_limit_gb}GB / {remaining_bytes=}. Please free up space on your phone."
             logger.info(message)
             if not dry_run:
-                send_discord_notification(message)
+                send_discord_notification(message, settings.discord_webhook_url)
             break
 
         logger.info(f"Syncing user {user.username} with quota of {remaining_bytes / MEGABYTE:.2f}MB...")
         try:
-            new_batch, new_assets = sync_per_user(settings.syncthing_dir, user, remaining_bytes, dry_run)
+            new_batch, new_assets = sync_per_user(syncthing_dir, user, remaining_bytes, dry_run)
         except Exception:
             logger.exception(f"Failed to sync for user {user.username}. Skipping.")
             continue

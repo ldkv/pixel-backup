@@ -2,8 +2,8 @@ import logging
 
 from django.core.management.base import BaseCommand, CommandParser
 
+from history.models import GlobalConfig
 from pixel_backup.core.sync import sync_all_users
-from pixel_backup.env import ENV_VARS
 
 logger = logging.getLogger(__name__)
 
@@ -23,4 +23,5 @@ class Command(BaseCommand):
         if dry_run:
             logger.info("DRY RUN mode enabled. No assets will be linked.")
 
-        sync_all_users(ENV_VARS, dry_run=dry_run)
+        global_config = GlobalConfig.objects.get()
+        sync_all_users(global_config, dry_run=dry_run)
