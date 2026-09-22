@@ -1,6 +1,20 @@
 from django.contrib import admin
 
-from history.models import Batch, SyncedAsset, UserConfig
+from history.models import Batch, GlobalConfig, SyncedAsset, UserConfig
+
+
+@admin.register(GlobalConfig)
+class GlobalConfigAdmin(admin.ModelAdmin):
+    list_display = [
+        "id",
+        "syncthing_dir",
+        "phone_limit_gb",
+        "stop_threshold_mb",
+        "cron_schedule",
+        "cron_timezone",
+        "min_sleep_seconds",
+        "discord_webhook_url",
+    ]
 
 
 @admin.register(UserConfig)

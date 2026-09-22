@@ -12,18 +12,18 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT_SECONDS = 10
 
 
-def send_discord_notification(message: str) -> None:
+def send_discord_notification(message: str, discord_webhook_url: str = "") -> None:
     if ENV_VARS.pytest_version:
         logger.info("Skipped during unit tests.")
         return
 
-    if not ENV_VARS.discord_webhook_url:
+    if not discord_webhook_url:
         logger.warning("Discord webhook URL is not set. Skipping notification.")
         return
 
     data = json.dumps({"content": message}).encode("utf-8")
     headers = {"Content-Type": "application/json", "User-Agent": "pixel-backup/0.1"}
-    request = Request(ENV_VARS.discord_webhook_url, data=data, headers=headers, method="POST")
+    request = Request(discord_webhook_url, data=data, headers=headers, method="POST")
     try:
         with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             if response.status >= HTTP_400_BAD_REQUEST:

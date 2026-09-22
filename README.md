@@ -95,11 +95,14 @@ docker compose up -d --build
 
 Syncthing UI: `http://localhost:8384`
 
-**5. Add UserConfigs**
+**5. Set Global config and add UserConfigs**
 
-User Configs (and their sync progress) live in the database, managed through the Django admin. On first run, the tool automatically creates an `admin` superuser using the `ADMIN_PASSWORD` env var (default `admin`; the generated credentials are also logged on first startup). Log in and add each user under **History › User configs**:
+Sync settings and users both live in the database, managed through the Django admin. On first run, the tool automatically creates an `admin` superuser using the `ADMIN_PASSWORD` env var (default `admin`; the generated credentials are also logged on first startup).
 
-Admin UI: `http://localhost:8000/admin/` (see [Configuration](#configuration) section for the `UserConfig` fields)
+Admin UI: `http://localhost:8000/admin/`
+
+1. Under **History › Global config**, open the auto-created record and set `syncthing_dir` (it starts empty and is required), plus the quota and schedule you want — see [Global Configuration](#global-configuration-django-admin).
+2. Under **History › User configs**, add each user — see [User Configuration](#user-configuration-django-admin).
 
 ---
 
@@ -133,9 +136,11 @@ Or with Taskfile:
 task run
 ```
 
-This applies migrations, starts the sync daemon, and serves the API/admin. On first run, it automatically creates an `admin` superuser using `ADMIN_PASSWORD` (default `admin`; logged on first startup). Log in and add users through the Django admin (see [Configuration](#configuration) section):
+This applies migrations, starts the sync daemon, and serves the API/admin. On first run, it automatically creates an `admin` superuser using `ADMIN_PASSWORD` (default `admin`; logged on first startup) along with a default Global config record.
 
 Admin UI: `http://localhost:8000/admin/`
+
+Log in, then set `syncthing_dir` and the rest of the sync settings under **History › Global config**, and add your users under **History › User configs** (see [Configuration](#configuration)).
 
 ## Syncthing Setup Guide
 
@@ -160,7 +165,33 @@ Admin UI: `http://localhost:8000/admin/`
 
 ## Configuration
 
-Sync behavior is configured via environment variables (see [Environment Variables](#environment-variables)). Users and their sync progress live in the database, managed through the Django admin (see [User Configuration](#user-configuration-django-admin)).
+Configuration lives in three places:
+
+| What                                                         | Where                                       | Section                                                    |
+| ------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------- |
+| Sync behavior (staging path, quota, schedule, notifications) | Database — single `GlobalConfig` record     | [Global Configuration](#global-configuration-django-admin) |
+| Users and their sync progress                                | Database — one `UserConfig` record per user | [User Configuration](#user-configuration-django-admin)     |
+| Deployment (volume mounts, ports, admin bootstrap)           | Environment variables / `.env`              | [Environment Variables](#environment-variables)            |
+
+Both database-backed configs are edited through the Django admin at `/admin/`.
+
+---
+
+### Global Configuration: Django Admin
+
+Sync behavior is stored as a single `GlobalConfig` record, created automatically with defaults on first startup and edited under **History › Global config**.
+
+| Field                 | Default     | Description                                                                                                                                                     |
+| --------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `syncthing_dir`       | _(empty)_   | **Required — must be set before the first sync.** Directory where hard links are created for Syncthing. Must share a filesystem with every user's `source_dir`. |
+| `phone_limit_gb`      | `19.0`      | Maximum Syncthing folder size in GB. The tool stops adding files once reached.                                                                                  |
+| `stop_threshold_mb`   | `5`         | Headroom floor in MB. Syncing stops early once the remaining quota drops to this value.                                                                         |
+| `cron_schedule`       | `0 0 * * *` | Standard cron syntax for scheduling runs. Default runs daily at midnight.                                                                                       |
+| `cron_timezone`       | `UTC`       | IANA timezone name used to interpret the cron schedule (e.g., `America/New_York`).                                                                              |
+| `min_sleep_seconds`   | `60`        | Minimum seconds between runs, regardless of cron interval.                                                                                                      |
+| `discord_webhook_url` | _(empty)_   | Discord webhook URL for sync notifications. When empty, notifications are skipped.                                                                              |
+
+No restart is required: the daemon re-reads this record each cycle. It reads the config when it schedules a run, so an edit made while it's sleeping applies from the cycle after the one already scheduled.
 
 #### Cron Schedule Examples
 
@@ -194,20 +225,17 @@ Each sync run and every asset it links are also recorded (**History › Batches*
 
 ### Environment Variables
 
-All sync behavior (paths, quota, schedule, notifications) is configured via environment variables. Values can be exported in the shell, injected by Docker Compose, or placed in a `.env` file at the project root (copy `.env.example` to get started). All variables are optional and fall back to the defaults below.
+Environment variables now cover **deployment only** — volume mounts, ports, and the admin bootstrap password. Everything that controls sync behavior moved to [Global Configuration](#global-configuration-django-admin) in the database. Values can be exported in the shell, injected by Docker Compose, or placed in a `.env` file at the project root (copy `.env.example` to get started).
 
-| Variable              | Default                | Description                                                                                                                                                                                                                       |
-| --------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `API_PORT`            | `8000`                 | Host port mapped to the API/admin server. Docker Compose only.                                                                                                                                                                    |
-| `DATA_ROOT`           | _(required)_           | Host directory bind-mounted into the container at the same path. **Must be a common parent** of every user's `source_dir` and of `SYNCTHING_DIR` — hard links require one shared filesystem. Docker-only, no fallback if unset.   |
-| `SYNCTHING_DIR`       | `/mnt/media/syncthing` | Directory where hard links are created for Syncthing to sync. Must live under `DATA_ROOT`.                                                                                                                                        |
-| `LOCAL_DATA_DIR`      | _(required)_           | Host directory bind-mounted to `/data` in the container, where the SQLite database persists. Docker-only, no fallback if unset — the container's `DATA_DIR` is fixed to `/data` to match this mount and isn't affected by `.env`. |
-| `ADMIN_PASSWORD`      | `admin`                | Password for the auto-created `admin` superuser (created on first startup if it doesn't already exist).                                                                                                                           |
-| `PHONE_LIMIT_GB`      | `19.0`                 | Maximum Syncthing folder size in GB. Tool stops adding files when reached.                                                                                                                                                        |
-| `CRON_SCHEDULE`       | `0 0 * * *`            | Standard cron syntax for scheduling runs. Default runs daily at midnight.                                                                                                                                                         |
-| `TIMEZONE`            | `UTC`                  | IANA timezone name for interpreting cron schedule (e.g., `America/New_York`).                                                                                                                                                     |
-| `MIN_SLEEP_SECONDS`   | `60`                   | Minimum seconds between runs, regardless of cron interval.                                                                                                                                                                        |
-| `DISCORD_WEBHOOK_URL` | _(empty)_              | Discord webhook URL for sync notifications. When unset, notifications are skipped.                                                                                                                                                |
+| Variable               | Default                | Description                                                                                                                                                                                                                                              |
+| ---------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_PORT`             | `8000`                 | Host port mapped to the API/admin server. Docker Compose only.                                                                                                                                                                                           |
+| `PIXEL_BACKUP_VERSION` | `latest`               | Image tag to deploy, e.g. `v1.2.3`. Docker Compose only.                                                                                                                                                                                                 |
+| `DATA_ROOT`            | _(required)_           | Host directory bind-mounted into the container at the same path. **Must be a common parent** of every user's `source_dir` and of the `syncthing_dir` set in Global config — hard links require one shared filesystem. Docker-only, no fallback if unset. |
+| `SYNCTHING_DIR`        | `/mnt/media/syncthing` | Mount point for the **Syncthing container's** shared folder. Docker Compose only — the backup tool itself reads `syncthing_dir` from Global config, so keep the two values in sync.                                                                      |
+| `LOCAL_DATA_DIR`       | _(required)_           | Host directory bind-mounted to `/data` in the container, where the SQLite database persists. Docker-only, no fallback if unset.                                                                                                                          |
+| `DATA_DIR`             | `./data`               | Directory holding the SQLite database. Fixed to `/data` under Docker Compose to match the `LOCAL_DATA_DIR` mount; mainly relevant for local Python runs.                                                                                                 |
+| `ADMIN_PASSWORD`       | `admin`                | Password for the auto-created `admin` superuser (created on first startup if it doesn't already exist).                                                                                                                                                  |
 
 ---
 
@@ -231,13 +259,13 @@ Logs look like this:
 
 ### Discord Notifications (optional)
 
-Set the `DISCORD_WEBHOOK_URL` environment variable to receive alerts when:
+Set `discord_webhook_url` under **History › Global config** to receive alerts when:
 
 - A sync run completes (summary of files and size)
 - The `phone_limit_gb` is reached before all users finish (prompt to free space on the Pixel)
 - An asset is larger than a user's remaining quota and gets skipped
 
-Notifications are skipped in dry-run mode and when the variable is unset.
+Notifications are skipped in dry-run mode and when the field is empty.
 
 ### Forcing a Resync
 

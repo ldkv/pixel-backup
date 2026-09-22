@@ -4,10 +4,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from history.models import Batch, SyncedAsset, UserConfig
+from history.models import Batch, GlobalConfig, SyncedAsset, UserConfig
 from pixel_backup.core.sync import link_with_retry, sync_all_users, sync_per_user
 from pixel_backup.core.utils import consistent_dir
-from pixel_backup.env import GIGABYTE, NANOSECONDS, Settings
+from pixel_backup.env import GIGABYTE, NANOSECONDS
 
 pytestmark = pytest.mark.django_db
 
@@ -114,7 +114,9 @@ class TestDryRun:
         (self.user_dir / "photo.jpg").write_text("content")
 
         with patch("pixel_backup.core.sync.UserConfig.load", return_value=[self.user]):
-            settings = Settings(syncthing_dir=self.syncthing_dir, phone_limit_gb=1.0 / GIGABYTE, stop_threshold_mb=0)
+            settings = GlobalConfig(
+                syncthing_dir=str(self.syncthing_dir), phone_limit_gb=1.0 / GIGABYTE, stop_threshold_mb=0
+            )
             sync_all_users(settings, dry_run=True)
 
         assert SyncedAsset.objects.count() == 0
@@ -187,7 +189,7 @@ class TestSyncAllUsers:
             users.append(UserConfig.objects.create(username=f"user{i}", source_dir=str(source_dir), sync_order=i))
 
         with patch(self.user_config_mock_path, return_value=users):
-            settings = Settings(
+            settings = GlobalConfig(
                 syncthing_dir=syncthing_dir,
                 phone_limit_gb=10 / GIGABYTE,  # Only enough for ~2 users
                 stop_threshold_mb=0,
@@ -215,7 +217,7 @@ class TestSyncAllUsers:
         user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
 
         with patch(self.user_config_mock_path, return_value=[user]):
-            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=10 / GIGABYTE, stop_threshold_mb=0)
+            settings = GlobalConfig(syncthing_dir=str(syncthing_dir), phone_limit_gb=10 / GIGABYTE, stop_threshold_mb=0)
 
             sync_all_users(settings)
 
@@ -238,7 +240,7 @@ class TestSyncAllUsers:
             patch(self.user_config_mock_path, return_value=[user]),
             patch("pixel_backup.core.sync.send_discord_notification") as mock_notify,
         ):
-            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1 / GIGABYTE)
+            settings = GlobalConfig(syncthing_dir=str(syncthing_dir), phone_limit_gb=1 / GIGABYTE)
             sync_all_users(settings, dry_run=True)
 
         mock_notify.assert_not_called()
@@ -251,7 +253,7 @@ class TestSyncAllUsers:
         user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
 
         with patch(self.user_config_mock_path, return_value=[user]):
-            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1.0 / GIGABYTE)
+            settings = GlobalConfig(syncthing_dir=str(syncthing_dir), phone_limit_gb=1.0 / GIGABYTE)
 
             sync_all_users(settings)
 
@@ -269,7 +271,9 @@ class TestSyncAllUsers:
         user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
 
         with patch(self.user_config_mock_path, return_value=[user]):
-            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=1000 / GIGABYTE, stop_threshold_mb=0)
+            settings = GlobalConfig(
+                syncthing_dir=str(syncthing_dir), phone_limit_gb=1000 / GIGABYTE, stop_threshold_mb=0
+            )
             sync_all_users(settings)
 
         assert Batch.objects.count() == 1
@@ -308,7 +312,7 @@ class TestSyncAllUsers:
 
         # Quota is only enough for the small file; the large one must be skipped.
         with patch(self.user_config_mock_path, return_value=[user]):
-            settings = Settings(syncthing_dir=syncthing_dir, phone_limit_gb=3 / GIGABYTE, stop_threshold_mb=0)
+            settings = GlobalConfig(syncthing_dir=str(syncthing_dir), phone_limit_gb=3 / GIGABYTE, stop_threshold_mb=0)
             sync_all_users(settings)
 
         # Only the small file was synced; the loop stops at the oversized asset.

@@ -1,11 +1,13 @@
 from datetime import UTC, datetime
 from functools import cached_property
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from django.db import models
 from django.utils import timezone
 
-from pixel_backup.env import DEFAULT_BATCHES_CUTOFF, NANOSECONDS
+from pixel_backup.env import DEFAULT_BATCHES_CUTOFF, MEGABYTE, NANOSECONDS
+from pixel_backup.schemas import GlobalConfigIn
 
 
 class ModelBase(models.Model):
@@ -14,6 +16,31 @@ class ModelBase(models.Model):
 
     if TYPE_CHECKING:
         id: int
+
+
+class GlobalConfig(ModelBase):
+    syncthing_dir = models.CharField(default="")
+    phone_limit_gb = models.FloatField(default=19.0)
+    stop_threshold_mb = models.PositiveSmallIntegerField(default=5)
+    cron_schedule = models.CharField(default="0 0 * * *")
+    cron_timezone = models.CharField(default="UTC")
+    min_sleep_seconds = models.IntegerField(default=60)
+    discord_webhook_url = models.CharField(null=True, blank=True)
+
+    @property
+    def timezone(self) -> ZoneInfo:
+        return ZoneInfo(self.cron_timezone)
+
+    @cached_property
+    def stop_threshold_bytes(self) -> int:
+        return int(self.stop_threshold_mb * MEGABYTE)
+
+    def clean(self) -> None:
+        GlobalConfigIn.from_model(self)
+
+    @classmethod
+    async def load(cls) -> GlobalConfig:
+        return await cls.objects.aget()
 
 
 class UserConfig(ModelBase):
@@ -46,6 +73,9 @@ class Batch(ModelBase):
     files_count = models.PositiveIntegerField(default=0)
     total_bytes = models.PositiveBigIntegerField(default=0)
     synced_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name_plural = "Batches"
 
     if TYPE_CHECKING:
         user_config_id: int
