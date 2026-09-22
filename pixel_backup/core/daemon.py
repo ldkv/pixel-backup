@@ -14,6 +14,20 @@ sync_lock = asyncio.Lock()
 POLLING_INTERVAL_SECONDS = 5
 
 
+async def trigger_manual_sync(dry_run: bool = False) -> bool:
+    """Kicks off a sync in the background. Returns False without starting anything if one is already running."""
+    if sync_lock.locked():
+        return False
+
+    async def _run() -> None:
+        async with sync_lock:
+            global_config = await GlobalConfig.load()
+            await asyncio.to_thread(sync_all_users, global_config, dry_run)
+
+    asyncio.create_task(_run())
+    return True
+
+
 async def sync_loop() -> None:
     global_config = await GlobalConfig.load()
     now = datetime.now(global_config.timezone)

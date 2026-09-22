@@ -1,8 +1,9 @@
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
-from django_bolt.serializers import Serializer, field_validator
+from django_bolt.serializers import Serializer, field, field_validator
 
 
 class GlobalConfigIn(Serializer):
@@ -32,3 +33,30 @@ class GlobalConfigIn(Serializer):
             raise ValueError(f"cron_schedule is not a valid cron expression: {value!r}")
 
         return value
+
+
+class UserConfigIn(Serializer):
+    username: str
+    source_dir: str
+    sync_order: int
+
+
+class UserConfigOut(Serializer):
+    id: int
+    username: str
+    source_dir: str
+    sync_order: int
+    sync_cutoff_at: datetime
+    last_timestamp_ns: int
+
+
+class BatchOut(Serializer):
+    id: int
+    files_count: int
+    total_bytes: int
+    synced_at: datetime
+    username: str = field(source="user_config.username")
+
+
+class SyncOut(Serializer):
+    started: bool
