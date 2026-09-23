@@ -24,7 +24,7 @@ class TestGetSinceNs:
         cutoff = datetime(2024, 1, 1, tzinfo=UTC)
         user = UserConfig.objects.create(username="user", source_dir="/x", sync_order=0, sync_cutoff_at=cutoff)
 
-        assert user.cutoff_timestamp_ns == int(cutoff.timestamp() * NANOSECONDS)
+        assert user.active_cutoff_ns == int(cutoff.timestamp() * NANOSECONDS)
 
     def test_uses_last_timestamp_when_later_than_cutoff(self) -> None:
         cutoff = datetime(2024, 1, 1, tzinfo=UTC)
@@ -36,7 +36,7 @@ class TestGetSinceNs:
             last_timestamp_ns=int(datetime(2024, 6, 1, tzinfo=UTC).timestamp() * NANOSECONDS),
         )
 
-        assert user.cutoff_timestamp_ns == user.last_timestamp_ns
+        assert user.active_cutoff_ns == user.last_timestamp_ns
 
     def test_uses_cutoff_when_later_than_last_timestamp(self) -> None:
         cutoff = datetime(2024, 6, 1, tzinfo=UTC)
@@ -48,7 +48,7 @@ class TestGetSinceNs:
             last_timestamp_ns=int(datetime(2024, 1, 1, tzinfo=UTC).timestamp() * NANOSECONDS),
         )
 
-        assert user.cutoff_timestamp_ns == int(cutoff.timestamp() * NANOSECONDS)
+        assert user.active_cutoff_ns == int(cutoff.timestamp() * NANOSECONDS)
 
 
 class TestUpdateTimestamp:

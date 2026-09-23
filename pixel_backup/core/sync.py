@@ -22,7 +22,7 @@ def sync_all_users(settings: GlobalConfig, dry_run: bool = False) -> None:
     syncthing_dir = Path(settings.syncthing_dir)
     syncthing_dir.mkdir(parents=True, exist_ok=True)
     remaining_bytes = get_remaining_quota_bytes(syncthing_dir, settings.phone_limit_gb)
-    users = UserConfig.load()
+    users = list(UserConfig.load())
     total_files = 0
     total_bytes = 0
     for user in users:
@@ -86,7 +86,7 @@ def sync_per_user(
     validate_source_dir(source_dir, dest_dir)
     new_batch = Batch(user_config=user)
     already_synced_paths = SyncedAsset.get_synced_assets(user)
-    local_assets = fetch_local_assets(source_dir, user.cutoff_timestamp_ns, already_synced_paths)
+    local_assets = fetch_local_assets(source_dir, user.active_cutoff_ns, already_synced_paths)
     if not local_assets:
         return new_batch, []
 

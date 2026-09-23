@@ -14,7 +14,7 @@ from django_bolt.responses import HTML
 from history.models import Batch, GlobalConfig, UserConfig
 from pixel_backup.core.daemon import run_daemon, trigger_manual_sync
 from pixel_backup.env import ENV_VARS
-from pixel_backup.schemas import BatchOut, SyncOut, UserConfigIn, UserConfigOut
+from pixel_backup.schemas import BatchOut, GlobalConfigSchema, SyncOut, UserConfigIn, UserConfigOut
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +42,24 @@ async def admin_page() -> HTML:
     return HTML(STATIC_DIR.joinpath("admin.html").read_text())
 
 
+@api.get("/global_config")
+async def get_global_config() -> GlobalConfigSchema:
+    return GlobalConfigSchema.from_model(await GlobalConfig.load())
+
+
+@api.put("/global_config")
+async def update_global_config(body: GlobalConfigSchema) -> GlobalConfigSchema:
+    global_config = await GlobalConfig.load()
+    updated_fields = body.dump(exclude_none=True)
+    for key, value in updated_fields.items():
+        setattr(global_config, key, value)
+    await global_config.asave()
+    return GlobalConfigSchema.from_model(global_config)
+
+
 @api.get("/user_configs")
 async def list_user_configs() -> list[UserConfigOut]:
-    return await UserConfigOut.afrom_models(UserConfig.objects.all().order_by("sync_order", "username"))
+    return await UserConfigOut.afrom_models(UserConfig.load())
 
 
 @api.post("/user_configs")
@@ -83,8 +98,11 @@ async def delete_user_config(config_id: int) -> dict:
 
 
 @api.get("/batches")
-async def list_batches(limit: int = 100) -> list[BatchOut]:
-    return await BatchOut.afrom_models(Batch.objects.select_related("user_config").order_by("-synced_at")[:limit])
+async def list_batches(username: str | None = None, limit: int = 100) -> list[BatchOut]:
+    batches = Batch.objects.select_related("user_config")
+    if username:
+        batches = batches.filter(user_config__username=username)
+    return await BatchOut.afrom_models(batches.order_by("-synced_at")[:limit])
 
 
 @api.post("/sync")

@@ -26,6 +26,42 @@
   </div>
 
   <div class="card">
+    <h2>Global Config</h2>
+    <form class="add-form" id="global-config-form">
+      <div class="field">
+        <label for="gc-syncthing-dir">Syncthing Dir</label>
+        <input id="gc-syncthing-dir" data-field="syncthing_dir">
+      </div>
+      <div class="field">
+        <label for="gc-phone-limit-gb">Phone Limit (GB)</label>
+        <input id="gc-phone-limit-gb" data-field="phone_limit_gb" type="number" step="any" min="0" required>
+      </div>
+      <div class="field">
+        <label for="gc-stop-threshold-mb">Stop Threshold (MB)</label>
+        <input id="gc-stop-threshold-mb" data-field="stop_threshold_mb" type="number" min="0" required>
+      </div>
+      <div class="field">
+        <label for="gc-cron-schedule">Cron Schedule</label>
+        <input id="gc-cron-schedule" data-field="cron_schedule" required>
+      </div>
+      <div class="field">
+        <label for="gc-cron-timezone">Cron Timezone</label>
+        <input id="gc-cron-timezone" data-field="cron_timezone" required>
+      </div>
+      <div class="field">
+        <label for="gc-min-sleep-seconds">Min Sleep (s)</label>
+        <input id="gc-min-sleep-seconds" data-field="min_sleep_seconds" type="number" required>
+      </div>
+      <div class="field">
+        <label for="gc-discord-webhook-url">Discord Webhook URL</label>
+        <input id="gc-discord-webhook-url" data-field="discord_webhook_url">
+      </div>
+      <button type="submit">Save</button>
+      <span id="global-config-status" class="status-msg"></span>
+    </form>
+  </div>
+
+  <div class="card">
     <h2>User Configs</h2>
     <table>
       <thead>

@@ -4,10 +4,11 @@ from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from django.db import models
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from pixel_backup.env import DEFAULT_BATCHES_CUTOFF, MEGABYTE, NANOSECONDS
-from pixel_backup.schemas import GlobalConfigIn
+from pixel_backup.schemas import GlobalConfigSchema
 
 
 class ModelBase(models.Model):
@@ -36,7 +37,7 @@ class GlobalConfig(ModelBase):
         return int(self.stop_threshold_mb * MEGABYTE)
 
     def clean(self) -> None:
-        GlobalConfigIn.from_model(self)
+        GlobalConfigSchema.from_model(self)
 
     @classmethod
     async def load(cls) -> GlobalConfig:
@@ -54,14 +55,20 @@ class UserConfig(ModelBase):
     last_timestamp_ns = models.PositiveBigIntegerField(default=0)
 
     @classmethod
-    def load(cls) -> list[UserConfig]:
-        return list(cls.objects.all().order_by("sync_order", "username"))
+    def load(cls) -> QuerySet[UserConfig]:
+        return cls.objects.all().order_by("sync_order", "username")
 
     @cached_property
-    def cutoff_timestamp_ns(self) -> int:
+    def active_cutoff_ns(self) -> int:
         """Effective cursor: the later of the last synced timestamp and the configured cutoff."""
         cutoff_ns = int(self.sync_cutoff_at.timestamp() * NANOSECONDS)
         return max(self.last_timestamp_ns, cutoff_ns)
+
+    @cached_property
+    def active_cutoff_datetime(self) -> datetime:
+        """Effective cursor - in datetime form."""
+        last_sync_datetime = datetime.fromtimestamp(self.last_timestamp_ns / NANOSECONDS, tz=UTC)
+        return max(last_sync_datetime, self.sync_cutoff_at)
 
     def update_timestamp(self, new_timestamp_ns: int) -> None:
         self.last_timestamp_ns = new_timestamp_ns
