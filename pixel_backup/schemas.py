@@ -48,7 +48,7 @@ class UserConfigOut(Serializer):
     source_dir: str
     sync_order: int
     sync_cutoff_at: datetime
-    last_timestamp_ns: int
+    active_cutoff_datetime: datetime
 
 
 class BatchOut(Serializer):

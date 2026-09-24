@@ -65,9 +65,7 @@ async def list_user_configs() -> list[UserConfigOut]:
 @api.post("/user_configs")
 async def create_user_config(body: UserConfigIn) -> UserConfigOut:
     try:
-        user_config = await UserConfig.objects.acreate(
-            username=body.username, source_dir=body.source_dir, sync_order=body.sync_order
-        )
+        user_config = await UserConfig.objects.acreate(**body.dump())
     except IntegrityError as e:
         raise BadRequest(detail=str(e)) from e
     return UserConfigOut.from_model(user_config)
@@ -79,11 +77,11 @@ async def update_user_config(config_id: int, body: UserConfigIn) -> UserConfigOu
     if user_config is None:
         raise NotFound(detail=f"UserConfig {config_id} not found")
 
-    user_config.username = body.username
-    user_config.source_dir = body.source_dir
-    user_config.sync_order = body.sync_order
+    updated_fields = body.dump()
+    for field, value in updated_fields.items():
+        setattr(user_config, field, value)
     try:
-        await user_config.asave(update_fields=["username", "source_dir", "sync_order"])
+        await user_config.asave(update_fields=updated_fields.keys())
     except IntegrityError as e:
         raise BadRequest(detail=str(e)) from e
     return UserConfigOut.from_model(user_config)

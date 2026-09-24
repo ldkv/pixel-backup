@@ -15,7 +15,7 @@ function renderUserConfigRow(uc) {
     <td>${uc.source_dir}</td>
     <td>${uc.sync_order}</td>
     <td>${formatDate(uc.sync_cutoff_at)}</td>
-    <td>${uc.last_timestamp_ns}</td>
+    <td>${formatDate(uc.active_cutoff_datetime)}</td>
     <td>
       <div class="row-actions">
         <button class="secondary" data-action="edit">Edit</button>
