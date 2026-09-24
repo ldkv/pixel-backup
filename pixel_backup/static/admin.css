@@ -55,9 +55,10 @@ th, td {
   text-align: left;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
-  white-space: nowrap;
 }
+td { overflow-wrap: anywhere; }
 th {
+  white-space: nowrap;
   color: var(--muted);
   font-weight: 600;
   font-size: 0.8rem;
@@ -129,8 +130,10 @@ form.add-form input {
   font-size: 0.9rem;
   width: 160px;
 }
+#global-config-form { margin-top: 0; }
 form.add-form input:focus, button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .row-actions { display: flex; gap: 6px; }
+.row-actions button { white-space: nowrap; }
 input.inline-input {
   padding: 6px 8px;
   border: 1px solid var(--border);

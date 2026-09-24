@@ -1,28 +1,29 @@
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from django_bolt.serializers import Serializer, field, field_validator
 
 
-class GlobalConfigIn(Serializer):
-    syncthing_dir: Path | None = None
+class GlobalConfigSchema(Serializer):
+    syncthing_dir: str | None = None
     phone_limit_gb: float | None = None
     stop_threshold_mb: int | None = None
     cron_schedule: str | None = None
-    cron_timezone: ZoneInfo | None = None
+    cron_timezone: str | None = None
     min_sleep_seconds: int | None = None
     discord_webhook_url: str | None = None
 
     @field_validator("cron_timezone")
-    def validate_timezone(cls, value: str | None) -> ZoneInfo | None:
+    def validate_timezone(cls, value: str | None) -> str | None:
         if value is None:
             return None
         try:
-            return ZoneInfo(value)
+            ZoneInfo(value)
         except (ZoneInfoNotFoundError, ValueError) as e:
             raise ValueError(f"cron_timezone is not a valid timezone: {value!r}") from e
+
+        return value
 
     @field_validator("cron_schedule")
     def validate_cron_schedule(cls, value: str | None) -> str | None:
@@ -47,7 +48,7 @@ class UserConfigOut(Serializer):
     source_dir: str
     sync_order: int
     sync_cutoff_at: datetime
-    last_timestamp_ns: int
+    active_cutoff_datetime: datetime
 
 
 class BatchOut(Serializer):

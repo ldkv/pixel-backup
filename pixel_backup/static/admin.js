@@ -15,7 +15,7 @@ function renderUserConfigRow(uc) {
     <td>${uc.source_dir}</td>
     <td>${uc.sync_order}</td>
     <td>${formatDate(uc.sync_cutoff_at)}</td>
-    <td>${uc.last_timestamp_ns}</td>
+    <td>${formatDate(uc.active_cutoff_datetime)}</td>
     <td>
       <div class="row-actions">
         <button class="secondary" data-action="edit">Edit</button>
@@ -130,6 +130,46 @@ async function deleteUserConfig(id) {
   }
 }
 
+function errorDetail(err, fallback) {
+  if (Array.isArray(err.detail)) return err.detail.map((d) => d.msg).join('; ');
+  return err.detail || fallback;
+}
+
+const globalConfigInputs = document.querySelectorAll('#global-config-form [data-field]');
+
+async function loadGlobalConfig() {
+  const res = await fetch('/global_config');
+  const config = await res.json();
+  for (const input of globalConfigInputs) {
+    input.value = config[input.dataset.field] ?? '';
+  }
+}
+
+document.getElementById('global-config-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById('global-config-status');
+  statusEl.textContent = '';
+  statusEl.className = 'status-msg';
+  const body = {};
+  for (const input of globalConfigInputs) {
+    body[input.dataset.field] = input.type === 'number' ? Number(input.value) : input.value;
+  }
+  const res = await fetch('/global_config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    statusEl.textContent = 'Saved.';
+    statusEl.className = 'status-msg success';
+    loadGlobalConfig();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    statusEl.textContent = errorDetail(err, 'Failed to save global config.');
+    statusEl.className = 'status-msg error';
+  }
+});
+
 document.getElementById('batches-user-filter').addEventListener('change', loadBatches);
 
 document.getElementById('add-user-config-form').addEventListener('submit', async (e) => {
@@ -181,5 +221,6 @@ document.getElementById('sync-btn').addEventListener('click', async () => {
   }
 });
 
+loadGlobalConfig();
 loadUserConfigs();
 loadBatches();
