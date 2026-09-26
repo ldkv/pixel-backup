@@ -268,9 +268,7 @@ Notifications are skipped in dry-run mode and when the field is empty.
 
 ### Forcing a Resync
 
-To resync from a specific date, edit the user's `UserConfig` in the Django admin (`/admin/`): set `sync_cutoff_ns` to the nanosecond timestamp of your desired start date (or `0` to sync everything), and save — the next scheduled run picks up the change automatically.
-
-The cutoff is also the sync cursor: moving it later skips anything not yet synced before it, and moving it earlier re-syncs everything after it. Already-synced files are only skipped if they belong to the user's last `DEFAULT_BATCHES_CUTOFF` (7) batches.
+Changing a user's cutoff after creation isn't supported yet. The cutoff is also the sync cursor: moving it later would skip anything not yet synced before it, and moving it earlier would re-sync everything after it. It can only be set when adding the user, via the **Cutoff** field on the admin page (`/`) or `sync_cutoff_ns` in the Django admin (`/admin/`).
 
 ### Stopping the Service
 

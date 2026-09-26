@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.http import HttpRequest
 
 from history.models import Batch, GlobalConfig, SyncedAsset, UserConfig
 
@@ -20,6 +21,11 @@ class GlobalConfigAdmin(admin.ModelAdmin):
 @admin.register(UserConfig)
 class UserConfigAdmin(admin.ModelAdmin):
     list_display = ["id", "username", "source_dir", "sync_cutoff_at"]
+    readonly_fields = ["id", "sync_cutoff_ns"]
+
+    def get_readonly_fields(self, request: HttpRequest, obj: UserConfig | None = None) -> list[str]:
+        # The cutoff is also the sync cursor: it can be set on creation, but changing it later can skip or re-sync assets.
+        return ["sync_cutoff_ns"] if obj else []
 
 
 @admin.register(Batch)

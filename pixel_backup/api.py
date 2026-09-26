@@ -14,7 +14,7 @@ from django_bolt.responses import HTML
 from history.models import Batch, GlobalConfig, UserConfig
 from pixel_backup.core.daemon import run_daemon, trigger_manual_sync
 from pixel_backup.env import ENV_VARS
-from pixel_backup.schemas import BatchOut, GlobalConfigSchema, SyncOut, UserConfigIn, UserConfigOut
+from pixel_backup.schemas import BatchOut, GlobalConfigSchema, SyncOut, UserConfigIn, UserConfigOut, UserConfigUpdateIn
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ async def create_user_config(body: UserConfigIn) -> UserConfigOut:
 
 
 @api.put("/user_configs/{config_id}")
-async def update_user_config(config_id: int, body: UserConfigIn) -> UserConfigOut:
+async def update_user_config(config_id: int, body: UserConfigUpdateIn) -> UserConfigOut:
     user_config = await UserConfig.objects.filter(id=config_id).afirst()
     if user_config is None:
         raise NotFound(detail=f"UserConfig {config_id} not found")
@@ -80,11 +80,9 @@ async def update_user_config(config_id: int, body: UserConfigIn) -> UserConfigOu
     updated_fields = body.dump(exclude_none=True)
     for field, value in updated_fields.items():
         setattr(user_config, field, value)
-    # sync_cutoff_at is a property backed by the sync_cutoff_ns column.
-    update_fields = ["sync_cutoff_ns" if field == "sync_cutoff_at" else field for field in updated_fields]
 
     try:
-        await user_config.asave(update_fields=update_fields)
+        await user_config.asave(update_fields=updated_fields.keys())
     except IntegrityError as e:
         raise BadRequest(detail=str(e)) from e
     return UserConfigOut.from_model(user_config)

@@ -59,7 +59,7 @@ class TestUpdateUserConfig:
         user.refresh_from_db()
         assert (user.username, user.source_dir, user.sync_order, user.sync_cutoff_ns) == ("renamed", "/y", 1, 12345)
 
-    def test_updates_cutoff_when_sent(self, client: TestClient) -> None:
+    def test_ignores_cutoff_when_sent(self, client: TestClient) -> None:
         user = UserConfig.objects.create(username="user", source_dir="/x", sync_order=0, sync_cutoff_ns=12345)
 
         response = client.put(
@@ -69,4 +69,4 @@ class TestUpdateUserConfig:
 
         assert response.status_code == 200
         user.refresh_from_db()
-        assert user.sync_cutoff_ns == CUTOFF_NS
+        assert user.sync_cutoff_ns == 12345

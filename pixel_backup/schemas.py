@@ -36,10 +36,13 @@ class GlobalConfigSchema(Serializer):
         return value
 
 
-class UserConfigIn(Serializer):
+class UserConfigUpdateIn(Serializer):
     username: str
     source_dir: str
     sync_order: int
+
+
+class UserConfigIn(UserConfigUpdateIn):
     sync_cutoff_at: datetime | None = None
 
 
