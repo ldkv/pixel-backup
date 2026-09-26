@@ -108,7 +108,7 @@
                             <th>Username</th>
                             <th>Source Dir</th>
                             <th>Sync Order</th>
-                            <th>Cutoff</th>
+                            <th>Sync Cutoff (UTC)</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -133,8 +133,14 @@
                         />
                     </div>
                     <div class="field">
-                        <label for="uc-cutoff-at">Cutoff (optional)</label>
-                        <input id="uc-cutoff-at" type="datetime-local" />
+                        <label for="uc-cutoff-at"
+                            >Sync Cutoff (UTC, optional)</label
+                        >
+                        <input
+                            id="uc-cutoff-at"
+                            type="datetime-local"
+                            title="Interpreted as UTC, not your local timezone or the cron timezone"
+                        />
                     </div>
                     <button type="submit">Add</button>
                     <span id="add-user-config-status" class="status-msg"></span>

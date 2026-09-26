@@ -9,13 +9,15 @@ function formatDate(iso) {
     return new Date(iso).toLocaleString();
 }
 
-// A cutoff at the epoch (timestamp 0) means "sync everything".
+// Cutoffs are always shown and entered in UTC, not the browser's or cron's timezone.
 function formatCutoff(iso) {
-    return new Date(iso).getTime() <= 0 ? "None" : formatDate(iso);
+    return (
+        new Date(iso).toLocaleString(undefined, { timeZone: "UTC" }) + " UTC"
+    );
 }
 
 function fromCutoffInputValue(value) {
-    return value ? new Date(value).toISOString() : null;
+    return value ? new Date(value + "Z").toISOString() : null;
 }
 
 function renderUserConfigRow(uc) {
