@@ -141,6 +141,8 @@ input.inline-input {
   font-size: 0.85rem;
   width: 100%;
 }
+/* Size the datetime input to its content so the time part isn't clipped. */
+form.add-form input[type="datetime-local"] { width: auto; }
 select.filter-select {
   padding: 8px 10px;
   border: 1px solid var(--border);
