@@ -209,12 +209,12 @@ No restart is required: the daemon re-reads this record each cycle. It reads the
 
 Users to sync (and their progress) are stored in the database as `UserConfig` records, managed through the Django admin at `/admin/`. Log in with the superuser account created during installation and add entries under **History › User configs**.
 
-| Field            | Description                                                                                                                                                                        |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `username`       | **Required.** Used as the per-user subfolder name under `syncthing_dir`.                                                                                                           |
-| `source_dir`     | **Required.** Absolute path to this user's library directory. Must share a filesystem with `syncthing_dir`.                                                                        |
-| `sync_order`     | **Required.** Determines the order users are processed in during a sync run.                                                                                                       |
-| `sync_cutoff_ns` | Only sync assets modified on or after this nanosecond timestamp. Defaults to `0` (sync everything); advanced to the last synced asset after each sync. Lower it to force a resync. |
+| Field            | Description                                                                                                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`       | **Required.** Used as the per-user subfolder name under `syncthing_dir`.                                                                                                                      |
+| `source_dir`     | **Required.** Absolute path to this user's library directory. Must share a filesystem with `syncthing_dir`.                                                                                   |
+| `sync_order`     | **Required.** Determines the order users are processed in during a sync run.                                                                                                                  |
+| `sync_cutoff_ns` | Only sync assets modified on or after this nanosecond Unix timestamp (UTC). Defaults to `0` (sync everything); advanced to the last synced asset after each sync. Lower it to force a resync. |
 
 **Multiple Users:** Users are processed in `sync_order`. Each user consumes the remaining quota under `phone_limit_gb` until exhausted; later users are skipped, with a Discord alert if configured.
 
@@ -268,7 +268,9 @@ Notifications are skipped in dry-run mode and when the field is empty.
 
 ### Forcing a Resync
 
-Changing a user's cutoff after creation isn't supported yet. The cutoff is also the sync cursor: moving it later would skip anything not yet synced before it, and moving it earlier would re-sync everything after it. It can only be set when adding the user, via the **Cutoff** field on the admin page (`/`) or `sync_cutoff_ns` in the Django admin (`/admin/`).
+Changing a user's cutoff after creation isn't supported yet. The cutoff is also the sync cursor: moving it later would skip anything not yet synced before it, and moving it earlier would re-sync everything after it. It can only be set when adding the user, via the **Cutoff (UTC, optional)** field on the admin page (`/`) or `sync_cutoff_ns` in the Django admin (`/admin/`).
+
+The cutoff is always in **UTC**, not your browser's local timezone or `cron_timezone`. For example, on the admin page, entering `2026-01-01 00:00` means midnight UTC.
 
 ### Stopping the Service
 
