@@ -59,6 +59,7 @@ class BatchOut(Serializer):
     files_count: int
     total_bytes: int
     synced_at: datetime
+    resynced_at: datetime | None = None
     username: str = field(source="user_config.username")
 
 

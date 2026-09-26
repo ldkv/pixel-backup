@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from django.db import transaction
+from django.utils import timezone
 
 from history.models import Batch, GlobalConfig, SyncedAsset, UserConfig
 from pixel_backup.core.local_disk import fetch_local_assets
@@ -90,23 +91,89 @@ def sync_per_user(
     if not local_assets:
         return new_batch, []
 
-    new_assets = []
     action = "Previewing" if dry_run else "Generating"
     logger.info(
         f"Found {len(local_assets)} new assets for user {user.username}. {action} hard links with {user_quota_bytes=}..."
     )
-    created_dirs = set()
     dest_user_dir = Path(dest_dir, user.username)
-    for asset_path, asset_size, asset_created_at_ns in sorted(local_assets, key=lambda a: a[2]):
-        if new_batch.total_bytes + asset_size > user_quota_bytes:
-            remaining_bytes = user_quota_bytes - new_batch.total_bytes
+    candidates = [
+        SyncedAsset(
+            user_config=user,
+            source_path=asset_path.as_posix(),
+            size_bytes=asset_size,
+            created_at_ns=asset_created_at_ns,
+        )
+        for asset_path, asset_size, asset_created_at_ns in local_assets
+    ]
+    new_assets, _, _ = link_assets(dest_user_dir, candidates, user_quota_bytes, dry_run)
+    new_batch.files_count = len(new_assets)
+    new_batch.total_bytes = sum(asset.size_bytes for asset in new_assets)
+    return new_batch, new_assets
+
+
+def resync_batch(settings: GlobalConfig, batch_id: int, dry_run: bool = False) -> None:
+    """Recreate the missing hard links of a past batch. The user's sync cursor is left untouched."""
+    batch = Batch.objects.select_related("user_config").get(id=batch_id)
+    user = batch.user_config
+    syncthing_dir = Path(settings.syncthing_dir)
+    syncthing_dir.mkdir(parents=True, exist_ok=True)
+    validate_source_dir(Path(user.source_dir), syncthing_dir)
+    dest_user_dir = Path(syncthing_dir, user.username)
+    quota_bytes = get_remaining_quota_bytes(syncthing_dir, settings.phone_limit_gb) - settings.stop_threshold_bytes
+    relinked, missing_count, present_count = link_assets(
+        dest_user_dir,
+        list(batch.assets.all()),
+        quota_bytes,
+        dry_run,
+        settings.discord_webhook_url,
+    )
+    relinked_bytes = sum(asset.size_bytes for asset in relinked)
+    action = "Would resync" if dry_run else "Resynced"
+    message = (
+        f"{action} batch #{batch.id} ({user.username}): {len(relinked)} relinked ({relinked_bytes / MEGABYTE:.2f}MB), "
+        f"{present_count} already present, {missing_count} missing."
+    )
+    logger.info(message)
+    if not dry_run:
+        batch.resynced_at = timezone.now()
+        batch.save(update_fields=["resynced_at"])
+        send_discord_notification(message, settings.discord_webhook_url)
+
+
+def link_assets(
+    dest_user_dir: Path,
+    assets: list[SyncedAsset],
+    quota_bytes: float,
+    dry_run: bool = False,
+    discord_webhook_url: str = "",
+) -> tuple[list[SyncedAsset], int, int]:
+    """Hard-link assets in order until the quota runs out."""
+    linked_assets = []
+    linked_bytes = 0
+    created_dirs = set()
+    missing_count = 0
+    linked_count = 0
+    for asset in sorted(assets):
+        asset_path, asset_size = Path(asset.source_path), asset.size_bytes
+        if not asset_path.exists():
+            logger.warning(f"Skipping missing source asset: {asset_path=}")
+            missing_count += 1
+            continue
+
+        dest = generate_destination_path(dest_user_dir, asset_path)
+        if dest.exists():
+            linked_count += 1
+            logger.warning(f"Skipping link {asset_path=}. Destination already exists: {dest=}")
+            continue
+
+        if linked_bytes + asset_size > quota_bytes:
+            remaining_bytes = quota_bytes - linked_bytes
             message = f"Asset size is larger than remaining quota: {asset_path=} / {asset_size=} / {remaining_bytes=}"
             logger.warning(message)
             if not dry_run:
-                send_discord_notification(message)
+                send_discord_notification(message, discord_webhook_url)
             break
 
-        dest = generate_destination_path(dest_user_dir, asset_path)
         if not dry_run:
             if dest.parent not in created_dirs:
                 dest.parent.mkdir(parents=True, exist_ok=True)
@@ -117,26 +184,14 @@ def sync_per_user(
 
         action = "Would link" if dry_run else "Linked"
         logger.info(f"{action} {asset_path} -> {dest}")
-        new_batch.total_bytes += asset_size
-        new_batch.files_count += 1
-        new_assets.append(
-            SyncedAsset(
-                user_config=user,
-                source_path=asset_path.as_posix(),
-                dest_path=dest.as_posix(),
-                size_bytes=asset_size,
-                created_at_ns=asset_created_at_ns,
-            )
-        )
+        linked_bytes += asset_size
+        asset.dest_path = dest.as_posix()
+        linked_assets.append(asset)
 
-    return new_batch, new_assets
+    return linked_assets, missing_count, linked_count
 
 
 def link_with_retry(src: Path, dest: Path, retries: int = MAX_LINK_RETRIES) -> bool:
-    if dest.exists():
-        logger.warning(f"Skipping link {src=}. Destination already exists: {dest=}")
-        return True
-
     for attempt in range(1, retries + 1):
         try:
             os.link(src, dest)

@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 
 from history.models import GlobalConfig
-from pixel_backup.core.sync import sync_all_users
+from pixel_backup.core.sync import resync_batch, sync_all_users
 from pixel_backup.core.utils import seconds_until_next_cron
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,20 @@ async def trigger_manual_sync(dry_run: bool = False) -> bool:
         async with sync_lock:
             global_config = await GlobalConfig.load()
             await asyncio.to_thread(sync_all_users, global_config, dry_run)
+
+    asyncio.create_task(_run())
+    return True
+
+
+async def trigger_manual_resync(batch_id: int, dry_run: bool = False) -> bool:
+    """Kicks off a batch resync in the background. Returns False without starting anything if a sync is running."""
+    if sync_lock.locked():
+        return False
+
+    async def _run() -> None:
+        async with sync_lock:
+            global_config = await GlobalConfig.load()
+            await asyncio.to_thread(resync_batch, global_config, batch_id, dry_run)
 
     asyncio.create_task(_run())
     return True

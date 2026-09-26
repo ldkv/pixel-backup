@@ -272,6 +272,15 @@ Changing a user's cutoff after creation isn't supported yet. The cutoff is also 
 
 The cutoff is always in **UTC**, not your browser's local timezone or `cron_timezone`. For example, on the admin page, entering `2026-01-01 00:00` means midnight UTC.
 
+### Resyncing a Batch
+
+If a batch's files were removed from the Pixel (or the Syncthing folder) before Google Photos finished uploading them, click **Resync** on that batch in the admin page (`/`), or call `POST /batches/{id}/resync`. The batch's missing hard links are recreated so Syncthing pushes them to the phone again.
+
+- The user's `sync_cutoff_ns` is left untouched, and no new batch is created; the batch's **Resynced At** is updated instead.
+- Links still present are skipped, and so are assets whose source file no longer exists.
+- It respects `phone_limit_gb` like a normal sync: if the quota runs out, it stops early, and resyncing again later finishes the rest.
+- The **Dry run** checkbox applies, and a Discord summary is sent on real runs. It can't run while a sync is in progress.
+
 ### Stopping the Service
 
 ```bash

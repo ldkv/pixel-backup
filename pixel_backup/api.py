@@ -12,7 +12,7 @@ from django_bolt.exceptions import BadRequest, Conflict, NotFound
 from django_bolt.responses import HTML
 
 from history.models import Batch, GlobalConfig, UserConfig
-from pixel_backup.core.daemon import run_daemon, trigger_manual_sync
+from pixel_backup.core.daemon import run_daemon, trigger_manual_resync, trigger_manual_sync
 from pixel_backup.env import ENV_VARS
 from pixel_backup.schemas import BatchOut, GlobalConfigSchema, SyncOut, UserConfigIn, UserConfigOut, UserConfigUpdateIn
 
@@ -107,6 +107,17 @@ async def list_batches(username: str | None = None, limit: int = 100) -> list[Ba
 @api.post("/sync")
 async def trigger_sync(dry_run: bool = False) -> SyncOut:
     started = await trigger_manual_sync(dry_run=dry_run)
+    if not started:
+        raise Conflict(detail="A sync is already running")
+    return SyncOut(started=True)
+
+
+@api.post("/batches/{batch_id}/resync")
+async def resync_batch(batch_id: int, dry_run: bool = False) -> SyncOut:
+    if not await Batch.objects.filter(id=batch_id).aexists():
+        raise NotFound(detail=f"Batch {batch_id} not found")
+
+    started = await trigger_manual_resync(batch_id, dry_run=dry_run)
     if not started:
         raise Conflict(detail="A sync is already running")
     return SyncOut(started=True)

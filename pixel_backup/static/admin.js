@@ -128,7 +128,7 @@ async function loadBatches() {
     body.innerHTML = "";
     if (batches.length === 0) {
         body.innerHTML =
-            '<tr class="empty-row"><td colspan="4">No batches yet.</td></tr>';
+            '<tr class="empty-row"><td colspan="6">No batches yet.</td></tr>';
         return;
     }
     for (const b of batches) {
@@ -138,8 +138,37 @@ async function loadBatches() {
       <td>${b.files_count}</td>
       <td>${formatBytes(b.total_bytes)}</td>
       <td>${formatDate(b.synced_at)}</td>
+      <td>${b.resynced_at ? formatDate(b.resynced_at) : ""}</td>
+      <td>
+        <div class="row-actions">
+          <button class="secondary" data-action="resync">Resync</button>
+        </div>
+      </td>
     `;
+        tr.querySelector('[data-action="resync"]').addEventListener(
+            "click",
+            () => resyncBatch(b.id),
+        );
         body.appendChild(tr);
+    }
+}
+
+async function resyncBatch(id) {
+    const statusEl = document.getElementById("sync-status");
+    const dryRun = document.getElementById("dry-run-checkbox").checked;
+    if (!dryRun && !confirm("Relink the missing files of this batch?")) return;
+    statusEl.textContent = "Starting...";
+    statusEl.className = "status-msg";
+    const res = await fetch(`/batches/${id}/resync?dry_run=${dryRun}`, {
+        method: "POST",
+    });
+    if (res.ok) {
+        statusEl.textContent = "Resync started.";
+        statusEl.className = "status-msg success";
+    } else {
+        const err = await res.json().catch(() => ({}));
+        statusEl.textContent = err.detail || "Failed to start resync.";
+        statusEl.className = "status-msg error";
     }
 }
 

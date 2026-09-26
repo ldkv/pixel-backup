@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from history.models import Batch, GlobalConfig, SyncedAsset, UserConfig
-from pixel_backup.core.sync import link_with_retry, sync_all_users, sync_per_user
+from pixel_backup.core.sync import link_with_retry, resync_batch, sync_all_users, sync_per_user
 from pixel_backup.core.utils import consistent_dir
 from pixel_backup.env import GIGABYTE, NANOSECONDS
 
@@ -326,3 +326,86 @@ class TestSyncAllUsers:
         large_mtime_ns = large_file.stat().st_mtime_ns
         assert user.sync_cutoff_ns == small_mtime_ns
         assert user.sync_cutoff_ns < large_mtime_ns
+
+
+class TestResyncBatch:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path: Path) -> None:
+        self.syncthing_dir = tmp_path / "syncthing"
+        self.user_dir = tmp_path / "testuser"
+        self.user_dir.mkdir(parents=True)
+        self.files = [self.user_dir / f"photo{i}.jpg" for i in range(3)]
+        now_ns = 1_700_000_000_000_000_000
+        for i, file in enumerate(self.files):
+            file.write_bytes(b"X" * 5)
+            os.utime(file, ns=(now_ns + i * NANOSECONDS, now_ns + i * NANOSECONDS))
+
+        self.user = UserConfig.objects.create(username="testuser", source_dir=str(self.user_dir), sync_order=1)
+        with patch("pixel_backup.core.sync.UserConfig.load", return_value=[self.user]):
+            sync_all_users(self.settings(phone_limit_bytes=1000))
+
+        self.batch = Batch.objects.get()
+        self.user.refresh_from_db()
+        self.cutoff_ns = self.user.sync_cutoff_ns
+        self.dests = [
+            Path(p) for p in SyncedAsset.objects.order_by("created_at_ns").values_list("dest_path", flat=True)
+        ]
+
+    def settings(self, phone_limit_bytes: int) -> GlobalConfig:
+        return GlobalConfig(
+            syncthing_dir=str(self.syncthing_dir), phone_limit_gb=phone_limit_bytes / GIGABYTE, stop_threshold_mb=0
+        )
+
+    @patch("pixel_backup.core.sync.send_discord_notification")
+    def test_relinks_removed_assets_without_moving_cursor(self, mock_notify: Mock) -> None:
+        for dest in self.dests:
+            dest.unlink()
+
+        resync_batch(self.settings(phone_limit_bytes=1000), self.batch.id)
+
+        for file, dest in zip(self.files, self.dests, strict=True):
+            assert os.path.samefile(file, dest)
+        self.user.refresh_from_db()
+        assert self.user.sync_cutoff_ns == self.cutoff_ns
+        assert Batch.objects.count() == 1
+        self.batch.refresh_from_db()
+        assert self.batch.resynced_at is not None
+        message = mock_notify.call_args.args[0]
+        assert message.startswith(f"Resynced batch #{self.batch.id} (testuser): 3 relinked")
+        assert "0 already present, 0 missing" in message
+
+    @patch("pixel_backup.core.sync.send_discord_notification")
+    def test_skips_present_and_missing_assets(self, mock_notify: Mock) -> None:
+        self.dests[1].unlink()
+        self.dests[2].unlink()
+        self.files[2].unlink()
+
+        resync_batch(self.settings(phone_limit_bytes=1000), self.batch.id)
+
+        assert os.path.samefile(self.files[1], self.dests[1])
+        assert not self.dests[2].exists()
+        assert "1 relinked" in mock_notify.call_args.args[0]
+        assert "1 already present, 1 missing" in mock_notify.call_args.args[0]
+
+    @patch("pixel_backup.core.sync.send_discord_notification")
+    def test_stops_when_quota_exhausted(self, mock_notify: Mock) -> None:
+        for dest in self.dests:
+            dest.unlink()
+
+        resync_batch(self.settings(phone_limit_bytes=12), self.batch.id)
+
+        assert [dest.exists() for dest in self.dests] == [True, True, False]
+        assert mock_notify.call_args_list[0].args[0].startswith("Asset size is larger than remaining quota")
+        assert "2 relinked" in mock_notify.call_args_list[1].args[0]
+
+    @patch("pixel_backup.core.sync.send_discord_notification")
+    def test_dry_run_changes_nothing(self, mock_notify: Mock) -> None:
+        for dest in self.dests:
+            dest.unlink()
+
+        resync_batch(self.settings(phone_limit_bytes=1000), self.batch.id, dry_run=True)
+
+        assert not any(dest.exists() for dest in self.dests)
+        self.batch.refresh_from_db()
+        assert self.batch.resynced_at is None
+        mock_notify.assert_not_called()

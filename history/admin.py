@@ -32,7 +32,7 @@ class UserConfigAdmin(admin.ModelAdmin):
 class BatchAdmin(admin.ModelAdmin):
     list_select_related = ["user_config"]
     search_fields = ["user_config__username"]
-    list_display = ["id", "user_config__username", "files_count", "total_bytes", "synced_at"]
+    list_display = ["id", "user_config__username", "files_count", "total_bytes", "synced_at", "resynced_at"]
 
 
 @admin.register(SyncedAsset)

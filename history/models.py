@@ -76,12 +76,14 @@ class Batch(ModelBase):
     files_count = models.PositiveIntegerField(default=0)
     total_bytes = models.PositiveBigIntegerField(default=0)
     synced_at = models.DateTimeField(default=timezone.now)
+    resynced_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name_plural = "Batches"
 
     if TYPE_CHECKING:
         user_config_id: int
+        assets: models.QuerySet[SyncedAsset]
 
 
 class SyncedAsset(ModelBase):
@@ -95,6 +97,9 @@ class SyncedAsset(ModelBase):
     if TYPE_CHECKING:
         user_config_id: int
         batch_id: int
+
+    def __gt__(self, other: "SyncedAsset") -> bool:
+        return self.created_at_ns > other.created_at_ns
 
     @classmethod
     def get_synced_assets(cls, user_config: UserConfig, batches_ago: int = DEFAULT_BATCHES_CUTOFF) -> set[str]:
