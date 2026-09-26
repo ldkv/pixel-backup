@@ -32,7 +32,7 @@ jobs:
 
       - name: Install uv
         if: ${{ steps.release.outputs.prs_created == 'true' }}
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Sync uv.lock with bumped version
         if: ${{ steps.release.outputs.prs_created == 'true' }}
