@@ -8,14 +8,18 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString();
 }
 
+// A cutoff at the epoch (timestamp 0) means "sync everything".
+function formatCutoff(iso) {
+  return new Date(iso).getTime() <= 0 ? 'None' : formatDate(iso);
+}
+
 function renderUserConfigRow(uc) {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td>${uc.username}</td>
     <td>${uc.source_dir}</td>
     <td>${uc.sync_order}</td>
-    <td>${formatDate(uc.sync_cutoff_at)}</td>
-    <td>${formatDate(uc.active_cutoff_datetime)}</td>
+    <td>${formatCutoff(uc.sync_cutoff_at)}</td>
     <td>
       <div class="row-actions">
         <button class="secondary" data-action="edit">Edit</button>
@@ -33,8 +37,7 @@ function renderUserConfigEditRow(tr, uc) {
     <td><input class="inline-input" data-field="username" value="${uc.username}"></td>
     <td><input class="inline-input" data-field="source_dir" value="${uc.source_dir}"></td>
     <td><input class="inline-input" data-field="sync_order" type="number" value="${uc.sync_order}"></td>
-    <td>${formatDate(uc.sync_cutoff_at)}</td>
-    <td>${uc.last_timestamp_ns}</td>
+    <td>${formatCutoff(uc.sync_cutoff_at)}</td>
     <td>
       <div class="row-actions">
         <button data-action="save">Save</button>
@@ -72,7 +75,7 @@ async function loadUserConfigs() {
   const body = document.getElementById('user-configs-body');
   body.innerHTML = '';
   if (configs.length === 0) {
-    body.innerHTML = '<tr class="empty-row"><td colspan="6">No user configs yet.</td></tr>';
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">No user configs yet.</td></tr>';
   } else {
     for (const uc of configs) {
       body.appendChild(renderUserConfigRow(uc));

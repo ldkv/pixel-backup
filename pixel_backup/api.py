@@ -65,7 +65,7 @@ async def list_user_configs() -> list[UserConfigOut]:
 @api.post("/user_configs")
 async def create_user_config(body: UserConfigIn) -> UserConfigOut:
     try:
-        user_config = await UserConfig.objects.acreate(**body.dump())
+        user_config = await UserConfig.objects.acreate(**body.dump(exclude_none=True))
     except IntegrityError as e:
         raise BadRequest(detail=str(e)) from e
     return UserConfigOut.from_model(user_config)
@@ -77,11 +77,14 @@ async def update_user_config(config_id: int, body: UserConfigIn) -> UserConfigOu
     if user_config is None:
         raise NotFound(detail=f"UserConfig {config_id} not found")
 
-    updated_fields = body.dump()
+    updated_fields = body.dump(exclude_none=True)
     for field, value in updated_fields.items():
         setattr(user_config, field, value)
+    # sync_cutoff_at is a property backed by the sync_cutoff_ns column.
+    update_fields = ["sync_cutoff_ns" if field == "sync_cutoff_at" else field for field in updated_fields]
+
     try:
-        await user_config.asave(update_fields=updated_fields.keys())
+        await user_config.asave(update_fields=update_fields)
     except IntegrityError as e:
         raise BadRequest(detail=str(e)) from e
     return UserConfigOut.from_model(user_config)

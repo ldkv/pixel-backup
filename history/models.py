@@ -48,31 +48,27 @@ class UserConfig(ModelBase):
     username = models.CharField(unique=True)
     source_dir = models.CharField()
     sync_order = models.PositiveSmallIntegerField(unique=True)
-    sync_cutoff_at = models.DateTimeField(
-        default=datetime.min.replace(tzinfo=UTC),
-        help_text="Only sync assets created on or after this date/time; earlier assets are skipped.",
+    sync_cutoff_ns = models.PositiveBigIntegerField(
+        default=0,
+        help_text="Only sync assets modified on or after this nanosecond timestamp. Advanced after each sync.",
     )
-    last_timestamp_ns = models.PositiveBigIntegerField(default=0)
 
     @classmethod
     def load(cls) -> QuerySet[UserConfig]:
         return cls.objects.all().order_by("sync_order", "username")
 
-    @cached_property
-    def active_cutoff_ns(self) -> int:
-        """Effective cursor: the later of the last synced timestamp and the configured cutoff."""
-        cutoff_ns = int(self.sync_cutoff_at.timestamp() * NANOSECONDS)
-        return max(self.last_timestamp_ns, cutoff_ns)
+    @property
+    def sync_cutoff_at(self) -> datetime:
+        """Cutoff - in datetime form."""
+        return datetime.fromtimestamp(self.sync_cutoff_ns / NANOSECONDS, tz=UTC)
 
-    @cached_property
-    def active_cutoff_datetime(self) -> datetime:
-        """Effective cursor - in datetime form."""
-        last_sync_datetime = datetime.fromtimestamp(self.last_timestamp_ns / NANOSECONDS, tz=UTC)
-        return max(last_sync_datetime, self.sync_cutoff_at)
+    @sync_cutoff_at.setter
+    def sync_cutoff_at(self, value: datetime) -> None:
+        self.sync_cutoff_ns = max(0, int(value.timestamp() * NANOSECONDS))
 
     def update_timestamp(self, new_timestamp_ns: int) -> None:
-        self.last_timestamp_ns = new_timestamp_ns
-        self.save(update_fields=["last_timestamp_ns"])
+        self.sync_cutoff_ns = new_timestamp_ns
+        self.save(update_fields=["sync_cutoff_ns"])
 
 
 class Batch(ModelBase):

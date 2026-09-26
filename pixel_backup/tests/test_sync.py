@@ -121,7 +121,7 @@ class TestDryRun:
 
         assert SyncedAsset.objects.count() == 0
         self.user.refresh_from_db()
-        assert self.user.last_timestamp_ns == 0
+        assert self.user.sync_cutoff_ns == 0
 
 
 class TestLinkWithRetry:
@@ -288,7 +288,7 @@ class TestSyncAllUsers:
 
         user.refresh_from_db()
         max_created_at_ns = max(asset.created_at_ns for asset in assets)
-        assert user.last_timestamp_ns == max_created_at_ns
+        assert user.sync_cutoff_ns == max_created_at_ns
 
     def test_sync_does_not_advance_cursor_past_asset_skipped_for_quota(self, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
@@ -324,5 +324,5 @@ class TestSyncAllUsers:
         # otherwise later.jpg (with a newer mtime) would be permanently missed.
         small_mtime_ns = small_file.stat().st_mtime_ns
         large_mtime_ns = large_file.stat().st_mtime_ns
-        assert user.last_timestamp_ns == small_mtime_ns
-        assert user.last_timestamp_ns < large_mtime_ns
+        assert user.sync_cutoff_ns == small_mtime_ns
+        assert user.sync_cutoff_ns < large_mtime_ns

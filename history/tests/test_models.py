@@ -19,36 +19,27 @@ class TestUserConfigLoad:
         assert [user.username for user in loaded] == ["alice", "bob", "charlie"]
 
 
-class TestGetSinceNs:
-    def test_uses_cutoff_when_no_assets_synced_yet(self) -> None:
+class TestCutoffAt:
+    def test_defaults_to_epoch(self) -> None:
+        user = UserConfig.objects.create(username="user", source_dir="/x", sync_order=0)
+
+        assert user.sync_cutoff_ns == 0
+        assert user.sync_cutoff_at == datetime(1970, 1, 1, tzinfo=UTC)
+
+    def test_create_from_datetime(self) -> None:
         cutoff = datetime(2024, 1, 1, tzinfo=UTC)
         user = UserConfig.objects.create(username="user", source_dir="/x", sync_order=0, sync_cutoff_at=cutoff)
 
-        assert user.active_cutoff_ns == int(cutoff.timestamp() * NANOSECONDS)
+        user.refresh_from_db()
+        assert user.sync_cutoff_ns == int(cutoff.timestamp() * NANOSECONDS)
+        assert user.sync_cutoff_at == cutoff
 
-    def test_uses_last_timestamp_when_later_than_cutoff(self) -> None:
-        cutoff = datetime(2024, 1, 1, tzinfo=UTC)
-        user = UserConfig.objects.create(
-            username="user",
-            source_dir="/x",
-            sync_order=0,
-            sync_cutoff_at=cutoff,
-            last_timestamp_ns=int(datetime(2024, 6, 1, tzinfo=UTC).timestamp() * NANOSECONDS),
-        )
+    def test_clamps_pre_epoch_datetime_to_zero(self) -> None:
+        user = UserConfig(username="user", source_dir="/x", sync_order=0)
 
-        assert user.active_cutoff_ns == user.last_timestamp_ns
+        user.sync_cutoff_at = datetime(1900, 1, 1, tzinfo=UTC)
 
-    def test_uses_cutoff_when_later_than_last_timestamp(self) -> None:
-        cutoff = datetime(2024, 6, 1, tzinfo=UTC)
-        user = UserConfig.objects.create(
-            username="user",
-            source_dir="/x",
-            sync_order=0,
-            sync_cutoff_at=cutoff,
-            last_timestamp_ns=int(datetime(2024, 1, 1, tzinfo=UTC).timestamp() * NANOSECONDS),
-        )
-
-        assert user.active_cutoff_ns == int(cutoff.timestamp() * NANOSECONDS)
+        assert user.sync_cutoff_ns == 0
 
 
 class TestUpdateTimestamp:
@@ -58,4 +49,4 @@ class TestUpdateTimestamp:
         user.update_timestamp(12345)
 
         user.refresh_from_db()
-        assert user.last_timestamp_ns == 12345
+        assert user.sync_cutoff_ns == 12345
