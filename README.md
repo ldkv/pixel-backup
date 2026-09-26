@@ -209,13 +209,12 @@ No restart is required: the daemon re-reads this record each cycle. It reads the
 
 Users to sync (and their progress) are stored in the database as `UserConfig` records, managed through the Django admin at `/admin/`. Log in with the superuser account created during installation and add entries under **History › User configs**.
 
-| Field               | Description                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `username`          | **Required.** Used as the per-user subfolder name under `syncthing_dir`.                                       |
-| `source_dir`        | **Required.** Absolute path to this user's library directory. Must share a filesystem with `syncthing_dir`.    |
-| `sync_order`        | **Required.** Determines the order users are processed in during a sync run.                                   |
-| `sync_cutoff_at`    | Only sync assets created on or after this date/time. Defaults to the earliest possible date (sync everything). |
-| `last_timestamp_ns` | **Auto-managed.** Nanosecond timestamp of the last synced asset. Lower (or reset) it to force a resync.        |
+| Field            | Description                                                                                                                                                                        |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`       | **Required.** Used as the per-user subfolder name under `syncthing_dir`.                                                                                                           |
+| `source_dir`     | **Required.** Absolute path to this user's library directory. Must share a filesystem with `syncthing_dir`.                                                                        |
+| `sync_order`     | **Required.** Determines the order users are processed in during a sync run.                                                                                                       |
+| `sync_cutoff_ns` | Only sync assets modified on or after this nanosecond timestamp. Defaults to `0` (sync everything); advanced to the last synced asset after each sync. Lower it to force a resync. |
 
 **Multiple Users:** Users are processed in `sync_order`. Each user consumes the remaining quota under `phone_limit_gb` until exhausted; later users are skipped, with a Discord alert if configured.
 
@@ -245,7 +244,7 @@ Once configured and running, the tool operates automatically:
 
 - Waits until the next scheduled cron time
 - Syncs new assets according to quota and user configuration
-- Saves progress to the database (`last_timestamp_ns` per user)
+- Saves progress to the database (`sync_cutoff_ns` per user)
 - Returns to sleep until the next scheduled run
 
 Logs look like this:
@@ -269,11 +268,9 @@ Notifications are skipped in dry-run mode and when the field is empty.
 
 ### Forcing a Resync
 
-To resync from a specific date, edit the user's `UserConfig` in the Django admin (`/admin/`):
+To resync from a specific date, edit the user's `UserConfig` in the Django admin (`/admin/`): set `sync_cutoff_ns` to the nanosecond timestamp of your desired start date (or `0` to sync everything), and save — the next scheduled run picks up the change automatically.
 
-1. Update `sync_cutoff_at` to your desired start date
-2. Reset `last_timestamp_ns` to `0` if it's later than the new cutoff
-3. Save — the next scheduled run picks up the change automatically
+The cutoff is also the sync cursor: moving it later skips anything not yet synced before it, and moving it earlier re-syncs everything after it. Already-synced files are only skipped if they belong to the user's last `DEFAULT_BATCHES_CUTOFF` (7) batches.
 
 ### Stopping the Service
 

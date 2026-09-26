@@ -86,7 +86,7 @@ def sync_per_user(
     validate_source_dir(source_dir, dest_dir)
     new_batch = Batch(user_config=user)
     already_synced_paths = SyncedAsset.get_synced_assets(user)
-    local_assets = fetch_local_assets(source_dir, user.active_cutoff_ns, already_synced_paths)
+    local_assets = fetch_local_assets(source_dir, user.sync_cutoff_ns, already_synced_paths)
     if not local_assets:
         return new_batch, []
 
