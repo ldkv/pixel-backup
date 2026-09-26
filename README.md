@@ -158,9 +158,9 @@ Log in, then set `syncthing_dir` and the rest of the sync settings under **Histo
 4. Share the server's `syncthing` folder to the Pixel at your chosen location (e.g., `Pictures`). The tool automatically manages per-user subfolders
 5. Start syncing. Subfolders for each user (e.g., `Pictures/alice`, `Pictures/bob`) will be created automatically
 6. Configure Google Photos backup:
-   - Sign in with each user's Google account
-   - Navigate to Settings → Back up & sync → Back up device folders
-   - Enable backup for the corresponding user folder
+    - Sign in with each user's Google account
+    - Navigate to Settings → Back up & sync → Back up device folders
+    - Enable backup for the corresponding user folder
 7. After all users' photos upload to Google Photos, delete photos from the Pixel to free space for the next sync cycle
 
 ## Configuration
