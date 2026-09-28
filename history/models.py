@@ -75,13 +75,14 @@ class Batch(ModelBase):
     user_config: UserConfig = models.ForeignKey(UserConfig, on_delete=models.CASCADE, related_name="batches")  # ty: ignore[invalid-assignment]
     files_count = models.PositiveIntegerField(default=0)
     total_bytes = models.PositiveBigIntegerField(default=0)
-    synced_at = models.DateTimeField(default=timezone.now)
+    last_synced_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         verbose_name_plural = "Batches"
 
     if TYPE_CHECKING:
         user_config_id: int
+        assets: models.QuerySet[SyncedAsset]
 
 
 class SyncedAsset(ModelBase):
