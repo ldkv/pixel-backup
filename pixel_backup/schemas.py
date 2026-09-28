@@ -58,7 +58,7 @@ class BatchOut(Serializer):
     id: int
     files_count: int
     total_bytes: int
-    synced_at: datetime
+    last_synced_at: datetime
     username: str = field(source="user_config.username")
 
 

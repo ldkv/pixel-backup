@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from django.db import transaction
+from django.utils import timezone
 
 from history.models import Batch, GlobalConfig, SyncedAsset, UserConfig
 from pixel_backup.core.local_disk import fetch_local_assets
@@ -108,6 +109,35 @@ def sync_per_user(
     new_batch.files_count = len(new_assets)
     new_batch.total_bytes = sum(asset.size_bytes for asset in new_assets)
     return new_batch, new_assets
+
+
+def resync_batch(settings: GlobalConfig, batch_id: int, dry_run: bool = False) -> None:
+    """Recreate the missing hard links of a past batch. The user's sync cursor is left untouched."""
+    batch = Batch.objects.select_related("user_config").get(id=batch_id)
+    user = batch.user_config
+    syncthing_dir = Path(settings.syncthing_dir)
+    syncthing_dir.mkdir(parents=True, exist_ok=True)
+    validate_source_dir(Path(user.source_dir), syncthing_dir)
+    dest_user_dir = Path(syncthing_dir, user.username)
+    quota_bytes = get_remaining_quota_bytes(syncthing_dir, settings.phone_limit_gb) - settings.stop_threshold_bytes
+    relinked, missing_count, present_count = link_assets(
+        dest_user_dir,
+        list(batch.assets.all()),
+        quota_bytes,
+        dry_run,
+        settings.discord_webhook_url,
+    )
+    relinked_bytes = sum(asset.size_bytes for asset in relinked)
+    action = "Would resync" if dry_run else "Resynced"
+    message = (
+        f"{action} batch #{batch.id} ({user.username}): {len(relinked)} relinked ({relinked_bytes / MEGABYTE:.2f}MB), "
+        f"{present_count} already present, {missing_count} missing."
+    )
+    logger.info(message)
+    if not dry_run:
+        batch.last_synced_at = timezone.now()
+        batch.save(update_fields=["last_synced_at"])
+        send_discord_notification(message, settings.discord_webhook_url)
 
 
 def link_assets(
