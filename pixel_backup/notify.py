@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT_SECONDS = 10
 
 
-def send_discord_notification(message: str, discord_webhook_url: str = "") -> None:
+def send_discord_notification(message: str, discord_webhook_url: str) -> None:
     if ENV_VARS.pytest_version:
         logger.info("Skipped during unit tests.")
         return

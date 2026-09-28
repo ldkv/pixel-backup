@@ -96,6 +96,9 @@ class SyncedAsset(ModelBase):
         user_config_id: int
         batch_id: int
 
+    def __gt__(self, other: "SyncedAsset") -> bool:
+        return self.created_at_ns > other.created_at_ns
+
     @classmethod
     def get_synced_assets(cls, user_config: UserConfig, batches_ago: int = DEFAULT_BATCHES_CUTOFF) -> set[str]:
         recent_batch_ids = list(
