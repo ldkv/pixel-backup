@@ -1,6 +1,6 @@
 ARG PYTHON_IMAGE=3.14.7-slim
 
-FROM ghcr.io/astral-sh/uv:0.12.20 AS uv-base
+FROM ghcr.io/astral-sh/uv:0.12.21 AS uv-base
 
 FROM python:${PYTHON_IMAGE} AS builder
 
