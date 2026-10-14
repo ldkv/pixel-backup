@@ -77,7 +77,7 @@ class Batch(ModelBase):
     total_bytes = models.PositiveBigIntegerField(default=0)
     last_synced_at = models.DateTimeField(default=timezone.now)
 
-    class Meta:
+    class Meta:  # ty: ignore[invalid-attribute-override]
         verbose_name_plural = "Batches"
 
     if TYPE_CHECKING:
