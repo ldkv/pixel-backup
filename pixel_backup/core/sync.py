@@ -36,7 +36,9 @@ def sync_all_users(settings: GlobalConfig, dry_run: bool = False) -> None:
 
         logger.info(f"Syncing user {user.username} with quota of {remaining_bytes / MEGABYTE:.2f}MB...")
         try:
-            new_batch, new_assets = sync_per_user(syncthing_dir, user, remaining_bytes, dry_run)
+            new_batch, new_assets = sync_per_user(
+                syncthing_dir, user, remaining_bytes, dry_run, settings.discord_webhook_url
+            )
         except Exception:
             logger.exception(f"Failed to sync for user {user.username}. Skipping.")
             continue
@@ -82,6 +84,7 @@ def sync_per_user(
     user: UserConfig,
     user_quota_bytes: float,
     dry_run: bool = False,
+    discord_webhook_url: str = "",
 ) -> tuple[Batch, list[SyncedAsset]]:
     source_dir = Path(user.source_dir)
     validate_source_dir(source_dir, dest_dir)
@@ -105,7 +108,7 @@ def sync_per_user(
         )
         for asset_path, asset_size, asset_created_at_ns in local_assets
     ]
-    new_assets, _, _ = link_assets(dest_user_dir, candidates, user_quota_bytes, dry_run)
+    new_assets, _, _ = link_assets(dest_user_dir, candidates, user_quota_bytes, dry_run, discord_webhook_url)
     new_batch.files_count = len(new_assets)
     new_batch.total_bytes = sum(asset.size_bytes for asset in new_assets)
     return new_batch, new_assets

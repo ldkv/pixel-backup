@@ -89,6 +89,17 @@ class TestSyncPerUser:
         assert new_batch.total_bytes == len("content22")
         assert {asset.source_path for asset in new_assets} == {file2.as_posix()}
 
+    def test_quota_exceeded_notification_uses_webhook_url(self) -> None:
+        (self.user_dir / "photo.jpg").write_text("content")
+        webhook_url = "https://discord.example/webhook"
+
+        with patch("pixel_backup.core.sync.send_discord_notification") as mock_notify:
+            new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 1, discord_webhook_url=webhook_url)
+
+        assert new_assets == []
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args.args[1] == webhook_url
+
 
 class TestDryRun:
     @pytest.fixture(autouse=True)
