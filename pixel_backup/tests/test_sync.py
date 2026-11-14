@@ -222,9 +222,10 @@ class TestSyncAllUsers:
             sync_all_users(settings)
 
         assert not (syncthing_dir / "testuser").exists()
-        assert mock_notify.call_count == 2
-        assert mock_notify.call_args_list[0].args[0].startswith("Asset size is larger than remaining quota")
-        assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 0 files")
+        mock_notify.assert_called_once()
+        message = mock_notify.call_args.args[0]
+        assert message.startswith("Sync complete: 0 files")
+        assert message.endswith("Remaining quota: 0.00MB.")
 
     def test_dry_run_does_not_notify(self, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
@@ -395,8 +396,8 @@ class TestResyncBatch:
         resync_batch(self.settings(phone_limit_bytes=12), self.batch.id)
 
         assert [dest.exists() for dest in self.dests] == [True, True, False]
-        assert mock_notify.call_args_list[0].args[0].startswith("Asset size is larger than remaining quota")
-        assert "2 relinked" in mock_notify.call_args_list[1].args[0]
+        mock_notify.assert_called_once()
+        assert "2 relinked" in mock_notify.call_args.args[0]
 
     @patch("pixel_backup.core.sync.send_discord_notification")
     def test_dry_run_changes_nothing(self, mock_notify: Mock) -> None:
