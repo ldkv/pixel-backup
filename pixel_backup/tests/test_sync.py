@@ -29,7 +29,7 @@ class TestSyncPerUser:
         file1.write_text("content1")
         file2.write_text("content2")
 
-        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0)
+        new_batch, new_assets, _ = sync_per_user(self.syncthing_dir, self.user, 10000.0)
 
         # Verify files were linked
         assert new_batch.total_bytes == 16
@@ -42,7 +42,7 @@ class TestSyncPerUser:
             assert os.path.samefile(asset.source_path, dest)
 
     def test_sync_no_assets(self) -> None:
-        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 1)
+        new_batch, new_assets, _ = sync_per_user(self.syncthing_dir, self.user, 1)
 
         assert new_batch.total_bytes == 0
         assert new_batch.files_count == 0
@@ -62,7 +62,7 @@ class TestSyncPerUser:
             created_at_ns=0,
         )
 
-        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0)
+        new_batch, new_assets, _ = sync_per_user(self.syncthing_dir, self.user, 10000.0)
 
         # No bytes should be added since the source path was already synced
         assert new_batch.total_bytes == 0
@@ -81,7 +81,7 @@ class TestSyncPerUser:
             patch("pixel_backup.core.sync.link_with_retry", side_effect=[False, True]),
             patch("pixel_backup.core.sync.time.sleep"),
         ):
-            new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0)
+            new_batch, new_assets, _ = sync_per_user(self.syncthing_dir, self.user, 10000.0)
 
         # Only the successfully-linked asset should be recorded; the failed one is not
         # counted, does not consume quota, and is not marked as synced.
@@ -104,7 +104,7 @@ class TestDryRun:
         file1 = self.user_dir / "photo1.jpg"
         file1.write_text("content1")
 
-        new_batch, new_assets = sync_per_user(self.syncthing_dir, self.user, 10000.0, dry_run=True)
+        new_batch, new_assets, _ = sync_per_user(self.syncthing_dir, self.user, 10000.0, dry_run=True)
 
         assert new_batch.total_bytes > 0
         assert len(new_assets) == 1
@@ -225,6 +225,28 @@ class TestSyncAllUsers:
         assert mock_notify.call_count == 2
         assert mock_notify.call_args_list[0].args[0].startswith("Asset size is larger than remaining quota")
         assert mock_notify.call_args_list[1].args[0].startswith("Sync complete: 0 files")
+
+    @patch("pixel_backup.core.sync.send_discord_notification")
+    def test_no_quota_notification_when_some_files_synced(self, mock_notify: Mock, tmp_path: Path) -> None:
+        syncthing_dir = tmp_path / "syncthing"
+        user_dir = tmp_path / "testuser"
+        user_dir.mkdir()
+        small_file, large_file = user_dir / "small.jpg", user_dir / "large.jpg"
+        small_file.write_bytes(b"X" * 5)
+        large_file.write_bytes(b"X" * 10)
+        now_ns = 1_700_000_000_000_000_000
+        os.utime(small_file, ns=(now_ns, now_ns))
+        os.utime(large_file, ns=(now_ns + NANOSECONDS, now_ns + NANOSECONDS))
+        user = UserConfig.objects.create(username="testuser", source_dir=str(user_dir), sync_order=1)
+
+        with patch(self.user_config_mock_path, return_value=[user]):
+            settings = GlobalConfig(syncthing_dir=str(syncthing_dir), phone_limit_gb=10 / GIGABYTE, stop_threshold_mb=0)
+
+            sync_all_users(settings)
+
+        # The large file exceeds the quota, but the small one was synced: only the summary is sent.
+        assert mock_notify.call_count == 1
+        assert mock_notify.call_args.args[0].startswith("Sync complete: 1 files")
 
     def test_dry_run_does_not_notify(self, tmp_path: Path) -> None:
         syncthing_dir = tmp_path / "syncthing"
