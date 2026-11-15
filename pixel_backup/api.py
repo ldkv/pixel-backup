@@ -9,9 +9,11 @@ from django.core.management import call_command
 from django.db import IntegrityError
 from django_bolt import BoltAPI
 from django_bolt.exceptions import BadRequest, Conflict, NotFound
+from django_bolt.openapi import OpenAPIConfig
 from django_bolt.responses import HTML
 
 from history.models import Batch, GlobalConfig, UserConfig
+from pixel_backup import __version__
 from pixel_backup.core.daemon import run_daemon, trigger_manual_resync, trigger_manual_sync
 from pixel_backup.env import ENV_VARS
 from pixel_backup.schemas import BatchOut, GlobalConfigSchema, SyncOut, UserConfigIn, UserConfigOut, UserConfigUpdateIn
@@ -34,12 +36,25 @@ async def lifespan(_api: BoltAPI) -> AsyncGenerator[None, Any]:
             await daemon_task
 
 
-api = BoltAPI(lifespan=lifespan)
+api = BoltAPI(
+    lifespan=lifespan,
+    openapi_config=OpenAPIConfig(
+        title="pixel-backup API",
+        description="Automatically backup local media library to Google Pixel via Syncthing.",
+        version=__version__,
+        strict=True,
+    ),
+)
 
 
 @api.get("/")
 async def admin_page() -> HTML:
     return HTML(STATIC_DIR.joinpath("admin.html").read_text())
+
+
+@api.get("/health")
+async def get_version() -> dict[str, str]:
+    return {"status": "OK", "version": __version__}
 
 
 @api.get("/global_config")

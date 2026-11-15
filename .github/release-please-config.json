@@ -13,6 +13,8 @@
     { "type": "test", "section": "✅ Tests", "hidden": true }
   ],
   "packages": {
-    ".": {}
+    ".": {
+      "extra-files": ["pixel_backup/__init__.py"]
+    }
   }
 }
