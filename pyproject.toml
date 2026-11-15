@@ -14,10 +14,10 @@ dependencies = [
 [dependency-groups]
 dev = [
     "django-stubs==6.1.2",
+    "pyrefly==1.4.1",
     "pytest==9.2.0",
     "pytest-django==4.14.0",
     "ruff==0.17.5",
-    "ty==0.0.102",
 ]
 
 [tool.uv]
@@ -59,7 +59,5 @@ max-complexity = 10
 DJANGO_SETTINGS_MODULE = "pixel_backup.settings"
 
 [tool.pyrefly]
-project-includes = [
-    "**/*.py*",
-    "**/*.ipynb",
-]
+project-includes = ["**/*.py*"]
+preset = "default"
