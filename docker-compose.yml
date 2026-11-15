@@ -16,7 +16,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
 
   syncthing:
-    image: syncthing/syncthing:2.0.16
+    image: syncthing/syncthing:latest
     container_name: syncthing
     restart: unless-stopped
     volumes:

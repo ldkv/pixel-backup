@@ -1,4 +1,4 @@
-ARG PYTHON_IMAGE=3.14.7-slim
+ARG PYTHON_IMAGE=3.15.2-slim
 
 FROM ghcr.io/astral-sh/uv:0.13.8 AS uv-base
 
