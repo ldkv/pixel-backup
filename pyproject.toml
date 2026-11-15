@@ -3,21 +3,21 @@ name = "pixel-backup"
 version = "0.5.1"
 description = "Automatically backup local media library to Google Pixel via Syncthing."
 authors = [{ name = "Vu LE", email = "ledkvu@gmail.com" }]
-requires-python = "==3.14.7"
+requires-python = "==3.14.10"
 dependencies = [
-    "croniter==6.2.4",
-    "django-bolt==0.12.0",
-    "pydantic-settings==2.16.0",
-    "tzdata==2026.5",
+    "croniter==7.0.0",
+    "django-bolt==0.13.0",
+    "pydantic-settings==2.16.2",
+    "tzdata==2026.6",
 ]
 
 [dependency-groups]
 dev = [
     "django-stubs==6.1.2",
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     "pytest-django==4.14.0",
-    "ruff==0.17.1",
-    "ty==0.0.89",
+    "ruff==0.17.5",
+    "ty==0.0.102",
 ]
 
 [tool.uv]
@@ -57,3 +57,9 @@ max-complexity = 10
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "pixel_backup.settings"
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
