@@ -1,5 +1,7 @@
+import tomllib
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -19,6 +21,15 @@ CUTOFF_NS = int(CUTOFF.timestamp() * NANOSECONDS)
 def client() -> Iterator[TestClient]:
     with TestClient(api) as client:
         yield client
+
+
+def test_version_matches_pyproject(client: TestClient) -> None:
+    pyproject = tomllib.loads(Path(__file__).parents[2].joinpath("pyproject.toml").read_text())
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "OK", "version": pyproject["project"]["version"]}
 
 
 class TestCreateUserConfig:
