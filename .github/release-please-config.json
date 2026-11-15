@@ -9,7 +9,7 @@
     { "type": "perf", "section": "⚡ Performance" },
     { "type": "refactor", "section": "♻️ Refactoring" },
     { "type": "docs", "section": "📝 Documentation" },
-    { "type": "chore", "section": "🧹 Chores", "hidden": true },
+    { "type": "chore", "section": "🧹 Chores" },
     { "type": "test", "section": "✅ Tests", "hidden": true }
   ],
   "packages": {
