@@ -63,7 +63,7 @@ tasks:
 
   type-check:
     desc: Run the type checker
-    cmd: uv run ty check
+    cmd: uv run pyrefly check
 
   code-quality:
     desc: Run the linters and static type checker

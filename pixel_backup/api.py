@@ -104,7 +104,7 @@ async def update_user_config(config_id: int, body: UserConfigUpdateIn) -> UserCo
 
 
 @api.delete("/user_configs/{config_id}")
-async def delete_user_config(config_id: int) -> dict:
+async def delete_user_config(config_id: int) -> dict[str, int]:
     deleted, _ = await UserConfig.objects.filter(id=config_id).adelete()
     if not deleted:
         raise NotFound(detail=f"UserConfig {config_id} not found")

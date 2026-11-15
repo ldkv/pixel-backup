@@ -34,7 +34,7 @@ class GlobalConfig(ModelBase):
 
     @cached_property
     def stop_threshold_bytes(self) -> int:
-        return int(self.stop_threshold_mb * MEGABYTE)
+        return self.stop_threshold_mb * MEGABYTE
 
     def clean(self) -> None:
         GlobalConfigSchema.from_model(self)
@@ -72,7 +72,7 @@ class UserConfig(ModelBase):
 
 
 class Batch(ModelBase):
-    user_config: UserConfig = models.ForeignKey(UserConfig, on_delete=models.CASCADE, related_name="batches")  # ty: ignore[invalid-assignment]
+    user_config = models.ForeignKey(UserConfig, on_delete=models.CASCADE, related_name="batches")
     files_count = models.PositiveIntegerField(default=0)
     total_bytes = models.PositiveBigIntegerField(default=0)
     last_synced_at = models.DateTimeField(default=timezone.now)
@@ -81,12 +81,11 @@ class Batch(ModelBase):
         verbose_name_plural = "Batches"
 
     if TYPE_CHECKING:
-        user_config_id: int
         assets: models.QuerySet[SyncedAsset]
 
 
 class SyncedAsset(ModelBase):
-    user_config: UserConfig = models.ForeignKey(UserConfig, on_delete=models.CASCADE, related_name="assets")  # ty: ignore[invalid-assignment]
+    user_config = models.ForeignKey(UserConfig, on_delete=models.CASCADE, related_name="assets")
     batch = models.ForeignKey(Batch, on_delete=models.SET_NULL, null=True, blank=True, related_name="assets")
     source_path = models.TextField()
     dest_path = models.TextField()
